@@ -11,6 +11,13 @@
   const gridToggle = document.getElementById('gridToggle');
   const tileInput = document.getElementById('tileInput');
 
+  const tileImageInput = document.getElementById('tileImageInput');
+  const tileFrameWInput = document.getElementById('tileFrameWInput');
+  const tileFrameHInput = document.getElementById('tileFrameHInput');
+  const tileColsInput = document.getElementById('tileColsInput');
+  const showIndexToggle = document.getElementById('showIndexToggle');
+  const clearTileImgBtn = document.getElementById('clearTileImgBtn');
+
   const newMapBtn = document.getElementById('newMapBtn');
   const exportBinBtn = document.getElementById('exportBinBtn');
   const exportJsonBtn = document.getElementById('exportJsonBtn');
@@ -29,6 +36,12 @@
     cellSize: 24,
     isMouseDown: false,
     lastPainted: new Set(),
+    // tile atlas
+    tileImg: null,
+    tileImgBitmap: null,
+    tileCols: 1,
+    tileFrameW: 24,
+    tileFrameH: 24,
   };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -43,6 +56,13 @@
       resizeGrid(w, h);
     }
     state.theme = k;
+    requestDraw();
+  }
+
+  function setTileAtlasFromInputs() {
+    state.tileCols = clamp(parseInt(tileColsInput.value || '1', 10), 1, 4096);
+    state.tileFrameW = clamp(parseInt(tileFrameWInput.value || '24', 10), 1, 1024);
+    state.tileFrameH = clamp(parseInt(tileFrameHInput.value || '24', 10), 1, 1024);
     requestDraw();
   }
 
@@ -134,25 +154,50 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw tiles as colored numbers (no sprites available here)
+    const hasAtlas = !!state.tileImgBitmap;
+
+    // draw tiles
     for (let y = 0; y < state.height; y++) {
       for (let x = 0; x < state.width; x++) {
         const t = state.tiles[idx(x, y)];
         const px = x * cell;
         const py = y * cell;
-        if (t !== 0) {
-          // Simple color hash by tile id
+        if (hasAtlas && t > 0) {
+          const index = t - 1; // 1-based to 0-based index
+          const cols = state.tileCols;
+          const sx = (index % cols) * state.tileFrameW;
+          const sy = Math.floor(index / cols) * state.tileFrameH;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            state.tileImgBitmap,
+            sx, sy, state.tileFrameW, state.tileFrameH,
+            px, py, cell, cell
+          );
+        } else {
+          if (t !== 0) {
+            const hue = (t * 37) % 360;
+            ctx.fillStyle = `hsl(${hue} 60% 90%)`;
+            ctx.fillRect(px, py, cell, cell);
+          } else {
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(px, py, cell, cell);
+          }
+        }
+
+        if (!hasAtlas && t !== 0) {
           const hue = (t * 37) % 360;
-          ctx.fillStyle = `hsl(${hue} 60% 90%)`;
-          ctx.fillRect(px, py, cell, cell);
           ctx.fillStyle = `hsl(${hue} 70% 30%)`;
           ctx.font = `${Math.floor(cell * 0.45)}px monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(String(t), px + cell / 2, py + cell / 2);
-        } else {
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(px, py, cell, cell);
+        } else if (showIndexToggle.checked) {
+          // overlay index text on top of atlas render
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
+          ctx.font = `${Math.floor(cell * 0.4)}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(t), px + cell / 2, py + cell / 2);
         }
       }
     }
@@ -197,18 +242,28 @@
     // draw only one cell for responsiveness
     ctx.clearRect(px, py, cell, cell);
     const t = value;
-    if (t !== 0) {
-      const hue = (t * 37) % 360;
-      ctx.fillStyle = `hsl(${hue} 60% 90%)`;
-      ctx.fillRect(px, py, cell, cell);
-      ctx.fillStyle = `hsl(${hue} 70% 30%)`;
-      ctx.font = `${Math.floor(cell * 0.45)}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(t), px + cell / 2, py + cell / 2);
+    const hasAtlas = !!state.tileImgBitmap;
+    if (hasAtlas && t > 0) {
+      const index = t - 1;
+      const cols = state.tileCols;
+      const sx = (index % cols) * state.tileFrameW;
+      const sy = Math.floor(index / cols) * state.tileFrameH;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(state.tileImgBitmap, sx, sy, state.tileFrameW, state.tileFrameH, px, py, cell, cell);
     } else {
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(px, py, cell, cell);
+      if (t !== 0) {
+        const hue = (t * 37) % 360;
+        ctx.fillStyle = `hsl(${hue} 60% 90%)`;
+        ctx.fillRect(px, py, cell, cell);
+        ctx.fillStyle = `hsl(${hue} 70% 30%)`;
+        ctx.font = `${Math.floor(cell * 0.45)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(t), px + cell / 2, py + cell / 2);
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(px, py, cell, cell);
+      }
     }
     if (gridToggle.checked) {
       ctx.strokeStyle = '#e5e7eb';
@@ -243,6 +298,40 @@
     } catch (err) {
       alert('Lỗi JSON: ' + err.message);
     }
+  });
+
+  tileImageInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = async () => {
+        try {
+          state.tileImg = img;
+          // Use createImageBitmap for better drawImage performance
+          state.tileImgBitmap = await createImageBitmap(img);
+          setTileAtlasFromInputs();
+          requestDraw();
+        } catch (err) {
+          console.error(err);
+          alert('Không thể tạo bitmap từ ảnh');
+        }
+      };
+      img.onerror = () => { alert('Không load được ảnh'); };
+      img.src = url;
+    } catch (err) {
+      alert('Lỗi ảnh: ' + err.message);
+    }
+  });
+
+  [tileFrameWInput, tileFrameHInput, tileColsInput].forEach(el => el.addEventListener('change', setTileAtlasFromInputs));
+  showIndexToggle.addEventListener('change', requestDraw);
+  clearTileImgBtn.addEventListener('click', () => {
+    state.tileImg = null;
+    state.tileImgBitmap = null;
+    requestDraw();
   });
 
   newMapBtn.addEventListener('click', () => {
@@ -325,5 +414,8 @@
   heightInput.value = String(state.height);
   themeInput.value = String(state.theme);
   cellSizeInput.value = String(state.cellSize);
+  tileFrameWInput.value = String(state.tileFrameW);
+  tileFrameHInput.value = String(state.tileFrameH);
+  tileColsInput.value = String(state.tileCols);
   requestDraw();
 })();

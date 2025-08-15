@@ -23,6 +23,13 @@
       <label>Grid: <input id="gridToggle" type="checkbox" checked /></label>
     </div>
     <div class="group">
+      <label>Tải tile.png: <input id="tileImageInput" type="file" accept="image/*" /></label>
+      <label>Khung tile(px): <input id="tileFrameWInput" type="number" min="1" max="1024" value="24" /> x <input id="tileFrameHInput" type="number" min="1" max="1024" value="24" /></label>
+      <label>Cột atlas: <input id="tileColsInput" type="number" min="1" max="4096" value="1" /></label>
+      <label>Hiển thị số: <input id="showIndexToggle" type="checkbox" /></label>
+      <button id="clearTileImgBtn">Xóa tile.png</button>
+    </div>
+    <div class="group">
       <label>Tile chọn (0-255): <input id="tileInput" type="number" min="0" max="255" value="1" /></label>
       <button id="fillAllBtn">Fill toàn bản đồ</button>
       <button id="clearAllBtn">Xóa về 0</button>
@@ -41,7 +48,8 @@
 
   <div class="hint">
     - Click trái: đặt tile theo "Tile chọn". | Click phải: đặt 0. | Kéo để vẽ liên tục.<br/>
-    - Dữ liệu binary: [1 byte width][1 byte height][1 byte theme k][width*height bytes tile].
+    - Dữ liệu binary: [1 byte width][1 byte height][1 byte theme k][width*height bytes tile].<br/>
+    - Có thể tải tile.png để hiển thị trực quan (slicing theo khung và số cột atlas).
   </div>
 
   <script src="app.js"></script>
