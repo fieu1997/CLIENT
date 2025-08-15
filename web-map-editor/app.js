@@ -257,7 +257,7 @@
   exportBinBtn.addEventListener('click', () => {
     try {
       const buf = serializeBinaryMap();
-      downloadBlob(new Blob([buf], { type: 'application/octet-stream' }), 'map.bin');
+      downloadBlob(new Blob([buf], { type: 'application/octet-stream' }), 'map');
     } catch (err) {
       alert('Không thể xuất: ' + err.message);
     }
