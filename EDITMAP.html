@@ -645,9 +645,23 @@ class MapViewerApp {
             out.writeShort(tileBlob.length);
             out.writeBytes(tileBlob);
             out.writeByte(-1);
-            out.writeShort(overlayBlob.length);
+                        out.writeShort(overlayBlob.length);
             out.writeBytes(overlayBlob);
-
+            // Points of interest (external VGOs)
+            {
+                const exVgos = (Array.isArray(this.mapData.vgos) ? this.mapData.vgos : []).filter(v => (v.mapGoId|0) >= 100);
+                const poiCount = Math.min(100, exVgos.length);
+                out.writeByte(poiCount);
+                for (let i = 0; i < poiCount; i++) {
+                    const v = exVgos[i];
+                    const px = Math.max(0, Math.min(0x7FFF, v.x|0));
+                    const py = Math.max(0, Math.min(0x7FFF, v.y|0));
+                    out.writeShort(px);
+                    out.writeShort(py);
+                    out.writeUTF(String(v.name || ''));
+                }
+            }
+            
             const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
