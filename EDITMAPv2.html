@@ -405,6 +405,7 @@ class MapViewerApp {
     // Icon edit state
     isIconEditingMode = false;
     selectedEffectObject = null;
+    isDraggingIcon = false;
 
     constructor() {
         this.canvas = document.getElementById('map-canvas');
@@ -993,9 +994,12 @@ class MapViewerApp {
             const hit = this.hitTestEffectObject(mx, my);
             if (hit) {
                 this.selectedEffectObject = hit;
-                this.log(`Đã chọn icon trang trí ID ${hit.templateId}. Kéo để di chuyển.`);
+                this.isDraggingIcon = true;
+                this.render();
+                this.log(`Đã chọn icon trang trí ID ${hit.templateId}.`);
             } else {
                 this.selectedEffectObject = null;
+                this.render();
             }
             return;
         }
@@ -1014,7 +1018,7 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
-        if (this.isIconEditingMode && this.selectedEffectObject) {
+        if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon) {
             this.selectedEffectObject.x = Math.round(mx);
             this.selectedEffectObject.y = Math.round(my);
             this.render();
@@ -1033,7 +1037,7 @@ class MapViewerApp {
     handleMouseUp() {
         this.isPainting = false;
         this.isPanning = false;
-        this.selectedEffectObject = null;
+        this.isDraggingIcon = false;
         this.canvas.classList.remove('grabbing');
     }
 
@@ -1301,7 +1305,11 @@ class MapViewerApp {
     }
 
     handleDeleteSelectedIcon() {
-        if (!this.mapData || !this.selectedEffectObject) return;
+        if (!this.mapData) return;
+        if (!this.selectedEffectObject) {
+            this.log('Chưa chọn icon nào. Hãy bật sửa icon và click vào icon trên map.');
+            return;
+        }
         const idx = this.mapData.effectObjects.indexOf(this.selectedEffectObject);
         if (idx >= 0) {
             const id = this.selectedEffectObject.templateId;
