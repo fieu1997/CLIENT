@@ -606,9 +606,17 @@ class MapViewerApp {
             const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
 
             // Compose final client message:
-            // [short 0][UTF name][short lenTileBlob][tileBlob][byte -1][short lenOverlay][overlay]
+            // [short mapId][short spawnX][short spawnY][short unk][UTF name]
+            // [short lenTileBlob][tileBlob][byte -1][short lenOverlay][overlay]
             const out = new BinaryWriter();
-            out.writeShort(0);
+            const mapId = 0;
+            const spawnX = 0; // tile coordinate
+            const spawnY = 0; // tile coordinate
+            const unk = 0;    // reserved
+            out.writeShort(mapId);
+            out.writeShort(spawnX);
+            out.writeShort(spawnY);
+            out.writeShort(unk);
             out.writeUTF(this.mapData.mapName || "");
             out.writeShort(tileBlob.length);
             out.writeBytes(tileBlob);
