@@ -567,87 +567,68 @@ class MapViewerApp {
     
     async handleSaveMap() {
         if (!this.mapData) { this.log("LỖI: Không có dữ liệu map để lưu."); return; }
-        this.log(`Bắt đầu quá trình lưu map '${this.mapData.mapName}'...`);
+        const width = (this.mapData.width | 0);
+        const height = (this.mapData.height | 0);
+        const k = (this.mapData.tilesetId | 0) & 0xFF;
+        if (width <= 0 || height <= 0 || width > 255 || height > 255) {
+            this.log(`LỖI: Kích thước không hợp lệ (w=${width}, h=${height}). Phải nằm trong [1..255].`);
+            return;
+        }
+        this.log(`Xuất định dạng client... (w=${width}, h=${height}, k=${k})`);
         try {
-            const writer = new BinaryWriter();
-            const encoder = new TextEncoder();
-    
-            writer.writeShort(0); 
-            writer.writeUTF(this.mapData.mapName);
-            writer.writeShort(this.mapData.mapVersion);
-            writer.writeByte(this.mapData.width);
-            writer.writeByte(this.mapData.height);
-            writer.writeByte(this.mapData.tilesetId);
-            this.mapData.tileMap.flat().forEach(tile => writer.writeByte(Math.max(0, Math.min(255, tile|0))));
-            this.log("Đã ghi header và dữ liệu tile.");
-    
-            writer.writeByte(-1);
-    
-            const objectWriter = new BinaryWriter();
-            objectWriter.writeShort(this.mapData.effectObjects.length);
-            this.mapData.effectObjects.forEach(obj => {
-                objectWriter.writeShort(obj.templateId);
-                objectWriter.writeShort(Math.round(obj.x / TILE_SIZE));
-                objectWriter.writeShort(Math.round(obj.y / TILE_SIZE));
-            });
-    
-            objectWriter.writeShort(this.mapData.internalVgoCount ?? 0); 
-    
-            const internalVgos = this.mapData.vgos.filter(vgo => vgo.mapGoId < 100);
-            internalVgos.forEach(vgo => {
-                const type = vgo.mapGoId - 1;
-                objectWriter.writeShort(Math.round(vgo.x / TILE_SIZE));
-                objectWriter.writeShort(Math.round(vgo.y / TILE_SIZE));
-                objectWriter.writeByte(type);
-                if (type === 0) {
-                    const nameBytes = encoder.encode(vgo.name);
-                    objectWriter.writeByte(nameBytes.length);
-                    objectWriter.writeBytes(nameBytes);
-                } else {
-                    objectWriter.writeUTF(vgo.name);
+            const clampByte = (v) => Math.max(0, Math.min(255, v | 0));
+
+            // Build tile blob: [w:1][h:1][k:1][w*h tiles]
+            const tileBlobWriter = new BinaryWriter();
+            tileBlobWriter.writeByte(width);
+            tileBlobWriter.writeByte(height);
+            tileBlobWriter.writeByte(k);
+            for (let y = 0; y < height; y++) {
+                const row = this.mapData.tileMap[y] || [];
+                for (let x = 0; x < width; x++) {
+                    const tile = row[x] ?? 0;
+                    tileBlobWriter.writeByte(clampByte(tile));
                 }
-            });
-
-            this.mapData.effData.forEach(eff => {
-                objectWriter.writeBytes([0x03, 0x65, 0x66, 0x66]);
-                const effStringBytes = encoder.encode(eff.raw);
-                objectWriter.writeByte(effStringBytes.length);
-                objectWriter.writeBytes(effStringBytes);
-            });
-            
-            const objectBuffer = new Uint8Array(objectWriter.getBuffer());
-            writer.writeShort(objectBuffer.length);
-            writer.writeBytes(objectBuffer);
-            this.log(`Đã ghi object block (${objectBuffer.length} bytes).`);
-    
-            const externalVgos = this.mapData.vgos.filter(vgo => vgo.mapGoId >= 100);
-            if (externalVgos.length > 0) {
-                writer.writeByte(externalVgos.length);
-                externalVgos.forEach(vgo => {
-                    writer.writeShort(vgo.x);
-                    writer.writeShort(vgo.y);
-                    writer.writeUTF(vgo.name);
-                });
-                this.log(`Đã ghi ${externalVgos.length} VGOs bên ngoài.`);
             }
-    
-            writer.writeByte(-1);
-            this.log("Đã ghi EOF marker.");
+            const tileBlob = new Uint8Array(tileBlobWriter.getBuffer());
 
-            const blob = new Blob([writer.getBuffer()], { type: 'application/octet-stream' });
+            // Build overlay blob (icons only): [short countIcons] then (templateId:short, xTile:short, yTile:short)*
+            const overlayWriter = new BinaryWriter();
+            const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
+            overlayWriter.writeShort(icons.length);
+            for (const obj of icons) {
+                const xTile = Math.max(0, Math.min(32767, Math.round((obj.x || 0) / TILE_SIZE)));
+                const yTile = Math.max(0, Math.min(32767, Math.round((obj.y || 0) / TILE_SIZE)));
+                overlayWriter.writeShort(obj.templateId | 0);
+                overlayWriter.writeShort(xTile);
+                overlayWriter.writeShort(yTile);
+            }
+            const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
+
+            // Compose final client message:
+            // [short 0][UTF name][short lenTileBlob][tileBlob][byte -1][short lenOverlay][overlay]
+            const out = new BinaryWriter();
+            out.writeShort(0);
+            out.writeUTF(this.mapData.mapName || "");
+            out.writeShort(tileBlob.length);
+            out.writeBytes(tileBlob);
+            out.writeByte(-1); // no minimap/bg
+            out.writeShort(overlayBlob.length);
+            out.writeBytes(overlayBlob);
+
+            const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `${this.mapData.tilesetId || 'output'}.map`;
+            a.download = `${this.mapData.tilesetId || 'map'}.bin`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(a.href);
-    
-            this.log(`Thành công! File map '${a.download}' đã được tạo.`);
-    
+
+            this.log(`Thành công! Xuất client bytes: tileBlob=${tileBlob.length}B, overlay=${overlayBlob.length}B.`);
         } catch (error) {
-            this.log(`LỖI NGHIÊM TRỌNG khi lưu: ${error}`);
-            console.error("Lỗi khi lưu file map:", error);
+            this.log(`LỖI NGHIÊM TRỌNG khi xuất: ${error}`);
+            console.error("Lỗi khi xuất định dạng client:", error);
         }
     }
 
