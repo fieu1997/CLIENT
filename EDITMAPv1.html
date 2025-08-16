@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSO Map Viewer v1 (Collision)</title>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --surface-color: #2a2a2a;
+            --primary-color: #4CAF50;
+            --primary-hover: #5cb85c;
+            --text-color: #f0f0f0;
+            --text-muted: #888;
+            --border-color: #444;
+            --font-family: 'Inter', sans-serif;
+        }
+        html { font-family: var(--font-family); }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            font-family: var(--font-family);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app-container { display: flex; width: 100%; height: 100%; }
+        .sidebar {
+            width: 360px; min-width: 300px; background-color: var(--surface-color);
+            padding: 1.5rem; border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto; box-sizing: border-box;
+        }
+        header h1 { margin: 0 0 0.5rem 0; font-size: 1.75rem; color: var(--primary-color); }
+        p.description { color: var(--text-muted); margin: 0 0 1rem 0; font-size: 0.9rem; }
+        h2 { font-size: 1.1rem; font-weight: 600; border-bottom: 2px solid var(--primary-color); padding-bottom: 0.5rem; margin: 0 0 1rem 0; }
+        .control-group { background-color: #222; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); }
+        .file-input-group { margin-bottom: 1rem; }
+        .file-input-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        input[type="file"], input[type="number"], select { width: 100%; background-color: #3e3e3e; color: var(--text-color); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
+        input[type="file"]::file-selector-button { background-color: #555; color: var(--text-color); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; margin-right: 1rem; }
+        input[type="file"]::file-selector-button:hover { background-color: #666; }
+        .action-button { width: 100%; background-color: var(--primary-color); color: white; border: none; padding: 0.75rem 1.2rem; border-radius: 4px; font-family: var(--font-family); font-weight: 600; cursor: pointer; transition: background-color 0.2s, opacity 0.2s; font-size: 1rem; }
+        .action-button:hover:not(:disabled) { background-color: var(--primary-hover); }
+        .action-button:disabled { background-color: #555; opacity: 0.6; cursor: not-allowed; }
+        .log-entries { flex-grow: 1; overflow-y: auto; background-color: var(--bg-color); padding: 0.75rem; border-radius: 4px; border: 1px solid var(--border-color); font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; display: flex; flex-direction: column-reverse; min-height: 150px; }
+        .log-entry { margin-bottom: 0.25rem; line-height: 1.4; color: #ccc; word-break: break-word; }
+        .log-timestamp { color: var(--text-muted); margin-right: 0.5rem; }
+        #canvas-container { flex-grow: 1; position: relative; background-color: #111; display: flex; justify-content: center; align-items: center; }
+        #map-canvas { display: block; background-color: var(--bg-color); cursor: grab; }
+        #map-canvas.grabbing { cursor: grabbing; }
+        #welcome-message { color: var(--text-muted); text-align: center; font-size: 1.2rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .inline { display: flex; gap: 0.5rem; align-items: center; }
+        .small-muted { color: var(--text-muted); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <header>
+                <h1>HSO Map Viewer v1</h1>
+                <p class="description">Xem bản đồ và lớp va chạm (0/1/2) theo client.</p>
+            </header>
+
+            <div class="control-group">
+                <h2>1. Tải File</h2>
+                <div class="file-input-group">
+                    <label for="map-input">File Bản Đồ (.map)</label>
+                    <input type="file" id="map-input" accept=".map,.*">
+                </div>
+                <div class="file-input-group">
+                    <label id="tileset-label" for="tileset-input">Ảnh Tileset (.png)</label>
+                    <input type="file" id="tileset-input" accept=".png">
+                </div>
+                <div class="file-input-group">
+                    <label for="icon-input">Ảnh Icons (.png)</label>
+                    <input type="file" id="icon-input" accept=".png" multiple>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h2>2. Lưu Dữ Liệu</h2>
+                <button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu (CMD 12)</button>
+            </div>
+
+            <div class="control-group">
+                <h2>3. Chỉnh Kích Thước</h2>
+                <div class="grid-2">
+                    <div>
+                        <label for="new-width-input">Chiều rộng (tiles)</label>
+                        <input id="new-width-input" type="number" min="1" step="1" placeholder="width">
+                    </div>
+                    <div>
+                        <label for="new-height-input">Chiều cao (tiles)</label>
+                        <input id="new-height-input" type="number" min="1" step="1" placeholder="height">
+                    </div>
+                </div>
+                <div class="file-input-group">
+                    <label for="anchor-select">Neo giữ (anchor)</label>
+                    <select id="anchor-select">
+                        <option value="top-left" selected>Giữ góc trái trên</option>
+                        <option value="center">Giữ giữa</option>
+                        <option value="bottom-right">Giữ góc phải dưới</option>
+                    </select>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="fill-tile-input">Tile mặc định</label>
+                        <input id="fill-tile-input" type="number" min="0" max="255" step="1" value="0">
+                    </div>
+                    <div class="inline" style="margin-top: 1.8rem;">
+                        <input id="clip-objects-checkbox" type="checkbox" checked>
+                        <label for="clip-objects-checkbox">Xóa đối tượng vượt biên</label>
+                    </div>
+                </div>
+                <div class="small-muted">Tile size = 24px. Tile = 0 sẽ để trống.</div>
+                <button id="apply-resize-button" class="action-button" style="margin-top: 0.75rem;">Áp dụng</button>
+            </div>
+
+            <div class="control-group">
+                <h2>4. Va chạm</h2>
+                <div class="inline" style="margin-bottom: 0.5rem;">
+                    <input type="checkbox" id="toggle-collision" checked>
+                    <label for="toggle-collision">Hiển thị lớp va chạm</label>
+                </div>
+                <div class="file-input-group">
+                    <label for="collision-mode">Chế độ hiển thị</label>
+                    <select id="collision-mode">
+                        <option value="number" selected>Hiển thị số (0/1/2)</option>
+                        <option value="color">Tô màu (1 đỏ / 2 xanh)</option>
+                    </select>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="f-threshold">Ngưỡng chặn F</label>
+                        <input id="f-threshold" type="number" min="0" max="255" step="1" value="32">
+                    </div>
+                    <div>
+                        <label for="g-threshold">Ngưỡng nước G</label>
+                        <input id="g-threshold" type="number" min="0" max="255" step="1" value="26">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <h2>Nhật Ký (Log)</h2>
+                <div id="log-entries-container" class="log-entries">
+                    <div id="initial-log-entry" class="log-entry"><span class="log-timestamp"></span>Chào mừng! Hãy tải file map để bắt đầu.</div>
+                </div>
+            </div>
+        </div>
+
+        <main id="canvas-container">
+            <div id="welcome-message"><p>Vui lòng tải lên file bản đồ và ảnh tileset.</p></div>
+            <canvas id="map-canvas" style="display: none;"></canvas>
+        </main>
+    </div>
+
+    <script type="module">
+class MapData {
+    mapName = "";
+    mapVersion = 0;
+    width = 0;
+    height = 0;
+    tilesetId = -1;
+    tileMap = [];
+    vgos = [];
+    effectObjects = [];
+    effData = [];
+    internalVgoCount = null;
+    collisionMap = [];
+}
+
+const TILE_SIZE = 24;
+
+class BinaryReader {
+    view; offset; textDecoder;
+    constructor(buffer) { this.view = new DataView(buffer); this.offset = 0; this.textDecoder = new TextDecoder('utf-8'); }
+    readByte() { return this.view.getInt8(this.offset++); }
+    readShort() { const v = this.view.getInt16(this.offset, false); this.offset += 2; return v; }
+    readUShort() { const v = this.view.getUint16(this.offset, false); this.offset += 2; return v; }
+    readUTF() { const len = this.readUShort(); const bytes = new Uint8Array(this.view.buffer, this.offset, len); this.offset += len; return this.textDecoder.decode(bytes); }
+    readBytes(n) { const bytes = new Uint8Array(this.view.buffer, this.offset, n); this.offset += n; return bytes; }
+    seek(ofs, from='start') { if (from==='start') this.offset = ofs; else this.offset += ofs; }
+    get eof() { return this.offset >= this.view.byteLength; }
+    getBuffer() { return this.view.buffer; }
+    getInt8At(ofs) { return this.view.getInt8(ofs); }
+}
+
+class BinaryWriter {
+    byteList = []; textEncoder = new TextEncoder();
+    writeByte(v) { this.byteList.push(v & 0xFF); }
+    writeShort(v) { const arr = new Uint8Array(2); new DataView(arr.buffer).setInt16(0, v, false); this.byteList.push(...arr); }
+    writeUTF(str) { const enc = this.textEncoder.encode(str); this.writeShort(enc.length); this.byteList.push(...enc); }
+    writeBytes(bytes) { this.byteList.push(...Array.from(bytes)); }
+    getBuffer() { return new Uint8Array(this.byteList).buffer; }
+}
+
+class MapViewerApp {
+    canvas; ctx; canvasContainer; welcomeMessage; logEntriesContainer; saveMapButton; textDecoder;
+    mapData = null; tilesetImage = null; effectIcons = new Map();
+    scale = 1.0; panX = 0; panY = 0; isPanning = false; lastMouseX = 0; lastMouseY = 0;
+    showCollision = true; collisionMode = 'number'; fThreshold = 32; gThreshold = 26;
+
+    constructor() {
+        this.canvas = document.getElementById('map-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.canvasContainer = document.getElementById('canvas-container');
+        this.welcomeMessage = document.getElementById('welcome-message');
+        this.logEntriesContainer = document.getElementById('log-entries-container');
+        this.saveMapButton = document.getElementById('save-map-button');
+        this.textDecoder = new TextDecoder('utf-8');
+        this.initEventListeners();
+        this.log('Map viewer đã khởi tạo. Sẵn sàng nhận file.');
+    }
+
+    log(message) {
+        if (!this.logEntriesContainer) return;
+        const initialLog = document.getElementById('initial-log-entry');
+        if (initialLog) initialLog.remove();
+        const ts = new Date().toLocaleTimeString('vi-VN');
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `<span class="log-timestamp">[${ts}]</span> ${message.replace(/\n/g, '<br>')}`;
+        this.logEntriesContainer.prepend(div);
+    }
+
+    initEventListeners() {
+        document.getElementById('map-input')?.addEventListener('change', this.handleMapFile.bind(this));
+        document.getElementById('tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+        document.getElementById('icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
+        this.saveMapButton.addEventListener('click', this.handleSaveMap.bind(this));
+        document.getElementById('apply-resize-button')?.addEventListener('click', this.applyResizeFromUI.bind(this));
+        document.getElementById('toggle-collision')?.addEventListener('change', (e) => { this.showCollision = e.target.checked; this.render(); });
+        document.getElementById('collision-mode')?.addEventListener('change', (e) => { this.collisionMode = e.target.value; this.render(); });
+        document.getElementById('f-threshold')?.addEventListener('input', (e) => { this.fThreshold = parseInt(e.target.value||'32',10)||32; this.calculateCollisionMap(); this.render(); });
+        document.getElementById('g-threshold')?.addEventListener('input', (e) => { this.gThreshold = parseInt(e.target.value||'26',10)||26; this.calculateCollisionMap(); this.render(); });
+        this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
+        this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+        window.addEventListener('resize', this.render.bind(this));
+    }
+
+    async handleMapFile(event) {
+        const input = event.target;
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        this.log(`Bắt đầu tải file map: ${file.name}`);
+        try {
+            const buffer = await file.arrayBuffer();
+            this.mapData = new MapData();
+            const reader = new BinaryReader(buffer);
+            this.log('Đang phân tích dữ liệu file map...');
+            reader.seek(2);
+            this.mapData.mapName = reader.readUTF();
+            this.mapData.mapVersion = reader.readShort();
+            this.mapData.width = reader.readByte();
+            this.mapData.height = reader.readByte();
+            this.mapData.tilesetId = reader.readByte();
+            this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
+            this.mapData.tileMap = [];
+            const tileData = reader.readBytes(this.mapData.width * this.mapData.height);
+            for (let y = 0; y < this.mapData.height; y++) {
+                this.mapData.tileMap.push(Array.from(tileData.slice(y * this.mapData.width, (y + 1) * this.mapData.width)));
+            }
+            this.log(`Đã đọc ${this.mapData.tileMap.length * this.mapData.width} tiles.`);
+            if (!reader.eof && reader.getInt8At(reader.offset) === -1) reader.readByte();
+            if (!reader.eof) {
+                const len = reader.readShort();
+                const start = reader.offset;
+                const objBuf = reader.getBuffer().slice(start, start + len);
+                const objReader = new BinaryReader(objBuf);
+                const numIcons = objReader.readShort();
+                for (let i = 0; i < numIcons; i++) {
+                    const templateId = objReader.readShort();
+                    const tx = objReader.readShort();
+                    const ty = objReader.readShort();
+                    this.mapData.effectObjects.push({ templateId, x: tx * TILE_SIZE, y: ty * TILE_SIZE, text: '', name: `Effect ID: ${templateId}` });
+                }
+            }
+            this.calculateCollisionMap();
+            document.getElementById('new-width-input').value = String(this.mapData.width);
+            document.getElementById('new-height-input').value = String(this.mapData.height);
+            this.saveMapButton.disabled = true; // chỉ xem, tránh ghi nhầm
+            this.canvas.style.display = 'block';
+            this.welcomeMessage.style.display = 'none';
+            this.resetView();
+            this.render();
+            this.log(`Hoàn tất tải map '${this.mapData.mapName}'.`);
+        } catch (err) {
+            console.error('Lỗi khi phân tích file map:', err);
+            this.log('LỖI: Không thể phân tích file map.');
+        }
+    }
+
+    async handleTilesetFile(event) {
+        const input = event.target; if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        this.log(`Đang tải file tileset: ${file.name}...`);
+        this.tilesetImage = new Image();
+        this.tilesetImage.onload = () => { this.log(`Tải thành công tileset '${file.name}'.`); this.render(); };
+        this.tilesetImage.onerror = () => { this.log(`LỖI: Không thể tải ảnh tileset '${file.name}'.`); this.tilesetImage = null; };
+        this.tilesetImage.src = URL.createObjectURL(file);
+    }
+
+    async handleIconFiles(event) {
+        const input = event.target; if (!input.files) return;
+        const files = Array.from(input.files); if (files.length === 0) { this.log('Không có file icon.'); return; }
+        this.log(`Bắt đầu tải ${files.length} file icon...`);
+        let ok = 0, fail = 0;
+        for (const file of files) {
+            const id = parseInt(file.name.split('.')[0], 10);
+            if (!isNaN(id)) {
+                const img = new Image(); img.src = URL.createObjectURL(file);
+                await new Promise((res) => { img.onload = res; img.onerror = res; });
+                if (img.complete && img.naturalWidth) { this.effectIcons.set(id, img); ok++; } else { fail++; }
+            } else { fail++; }
+        }
+        this.log(`Hoàn tất tải icons. Thành công: ${ok}, Thất bại: ${fail}.`);
+        this.render();
+    }
+
+    handleSaveMap() { this.log('Chỉ xem va chạm. Tính năng lưu CMD12 không bật ở bản v1.'); }
+
+    applyResizeFromUI() {
+        if (!this.mapData) { this.log('LỖI: Chưa có map.'); return; }
+        const newW = Math.max(1, parseInt(document.getElementById('new-width-input').value || '0', 10));
+        const newH = Math.max(1, parseInt(document.getElementById('new-height-input').value || '0', 10));
+        const anchor = document.getElementById('anchor-select').value;
+        const fillTile = Math.max(0, Math.min(255, parseInt(document.getElementById('fill-tile-input').value || '0', 10)));
+        const clip = document.getElementById('clip-objects-checkbox').checked;
+        this.resizeMap(newW, newH, anchor, fillTile, clip);
+    }
+
+    resizeMap(newWidth, newHeight, anchor, fillTileId, clipOutside) {
+        const oldWidth = this.mapData.width; const oldHeight = this.mapData.height;
+        let offsetX = 0, offsetY = 0;
+        if (anchor === 'center') { offsetX = Math.floor((newWidth - oldWidth) / 2); offsetY = Math.floor((newHeight - oldHeight) / 2); }
+        else if (anchor === 'bottom-right') { offsetX = newWidth - oldWidth; offsetY = newHeight - oldHeight; }
+        const newTileMap = new Array(newHeight);
+        for (let y = 0; y < newHeight; y++) {
+            const row = new Array(newWidth);
+            for (let x = 0; x < newWidth; x++) {
+                const srcX = x - offsetX; const srcY = y - offsetY;
+                row[x] = (srcX >= 0 && srcX < oldWidth && srcY >= 0 && srcY < oldHeight) ? (this.mapData.tileMap[srcY][srcX] | 0) : (fillTileId | 0);
+            }
+            newTileMap[y] = row;
+        }
+        const dx = offsetX * TILE_SIZE, dy = offsetY * TILE_SIZE;
+        const maxX = newWidth * TILE_SIZE, maxY = newHeight * TILE_SIZE;
+        const inBounds = (x, y) => x >= 0 && y >= 0 && x < maxX && y < maxY;
+        this.mapData.effectObjects = this.mapData.effectObjects.map(o => ({ ...o, x: o.x + dx, y: o.y + dy })).filter(o => !clipOutside || inBounds(o.x, o.y));
+        this.mapData.effData = this.mapData.effData.map(o => ({ ...o, x: o.x + dx, y: o.y + dy })).filter(o => !clipOutside || inBounds(o.x, o.y));
+        this.mapData.vgos = this.mapData.vgos.map(v => ({ ...v, x: v.x + dx, y: v.y + dy })).filter(v => !clipOutside || inBounds(v.x, v.y));
+        this.mapData.tileMap = newTileMap; this.mapData.width = newWidth; this.mapData.height = newHeight;
+        this.calculateCollisionMap();
+        this.log(`Đã resize: ${oldWidth}x${oldHeight} -> ${newWidth}x${newHeight}.`);
+        this.resetView(); this.render();
+    }
+
+    calculateCollisionMap() {
+        if (!this.mapData || !this.mapData.tileMap.length) { if (this.mapData) this.mapData.collisionMap = []; return; }
+        const { width, height, tilesetId, tileMap } = this.mapData;
+        const raw = Array(height).fill(null).map(() => Array(width).fill(0));
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const id = tileMap[y][x] | 0; let c = 0;
+                if (tilesetId < 9) {
+                    if (id >= this.fThreshold || id === 0) c = 1; else if (id >= this.gThreshold) c = 2; // nước
+                } else {
+                    if (id >= this.fThreshold || id === 0) c = 1;
+                }
+                raw[y][x] = c;
+            }
+        }
+        // Flood water expansion for lakebeds (optional simple pass)
+        const fin = raw.map(r => r.slice());
+        const q = [];
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (raw[y][x] === 2) q.push({x,y});
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+        const lakeBedIds = new Set([32,33,34,35]);
+        while (q.length) {
+            const {x,y} = q.shift();
+            for (const [dx,dy] of dirs) {
+                const nx = x+dx, ny = y+dy; if (nx<0||ny<0||nx>=width||ny>=height) continue;
+                if (fin[ny][nx] === 1 && lakeBedIds.has((tileMap[ny][nx] | 0))) { fin[ny][nx] = 2; q.push({x:nx,y:ny}); }
+            }
+        }
+        this.mapData.collisionMap = fin;
+        this.log('Đã cập nhật bản đồ va chạm.');
+    }
+
+    resetView() {
+        if (!this.mapData) return;
+        this.scale = 1.0;
+        const cw = this.canvasContainer.clientWidth, ch = this.canvasContainer.clientHeight;
+        const mw = this.mapData.width * TILE_SIZE, mh = this.mapData.height * TILE_SIZE;
+        this.scale = Math.min(cw / mw, ch / mh, 1.0) * 0.95;
+        this.panX = (cw - mw * this.scale) / 2; this.panY = (ch - mh * this.scale) / 2;
+        this.log(`View reset. Scale: ${this.scale.toFixed(2)}.`);
+    }
+
+    handleWheel(event) {
+        if (!this.mapData) return; event.preventDefault();
+        const rect = this.canvas.getBoundingClientRect(); const mx = event.clientX - rect.left; const my = event.clientY - rect.top;
+        const z = event.deltaY < 0 ? 1.1 : 1/1.1; const ns = Math.max(0.1, Math.min(this.scale * z, 10.0));
+        this.panX = mx - (mx - this.panX) * (ns / this.scale); this.panY = my - (my - this.panY) * (ns / this.scale); this.scale = ns; this.render();
+    }
+
+    handleMouseDown(event) { if (!this.mapData) return; if (event.button !== 0) return; this.isPanning = true; this.lastMouseX = event.clientX; this.lastMouseY = event.clientY; this.canvas.classList.add('grabbing'); }
+    handleMouseMove(event) { if (!this.isPanning) return; const dx = event.clientX - this.lastMouseX, dy = event.clientY - this.lastMouseY; this.panX += dx; this.panY += dy; this.lastMouseX = event.clientX; this.lastMouseY = event.clientY; this.render(); }
+    handleMouseUp() { this.isPanning = false; this.canvas.classList.remove('grabbing'); }
+
+    render() {
+        requestAnimationFrame(() => {
+            if (!this.mapData) return;
+            this.canvas.width = this.canvasContainer.clientWidth; this.canvas.height = this.canvasContainer.clientHeight;
+            this.ctx.save(); this.ctx.imageSmoothingEnabled = false; this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+            this.ctx.translate(this.panX, this.panY); this.ctx.scale(this.scale, this.scale);
+            this.drawTileMap();
+            this.drawCollisionLayer();
+            this.drawObjects();
+            this.ctx.restore();
+        });
+    }
+
+    drawTileMap() {
+        if (!this.mapData) return;
+        if (!this.tilesetImage) {
+            this.ctx.strokeStyle = '#555'; this.ctx.lineWidth = 1 / this.scale;
+            for (let y = 0; y < this.mapData.height; y++) for (let x = 0; x < this.mapData.width; x++) this.ctx.strokeRect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            return;
+        }
+        const cols = this.tilesetImage.width / TILE_SIZE;
+        for (let y = 0; y < this.mapData.height; y++) {
+            for (let x = 0; x < this.mapData.width; x++) {
+                const id = (this.mapData.tileMap[y][x] | 0) - 1; if (id < 0) continue;
+                const sx = (id % cols) * TILE_SIZE, sy = Math.floor(id / cols) * TILE_SIZE;
+                this.ctx.drawImage(this.tilesetImage, sx, sy, TILE_SIZE, TILE_SIZE, x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            }
+        }
+    }
+
+    drawCollisionLayer() {
+        if (!this.showCollision || !this.mapData || !this.mapData.collisionMap.length) return;
+        const cm = this.mapData.collisionMap;
+        for (let y = 0; y < cm.length; y++) {
+            for (let x = 0; x < cm[y].length; x++) {
+                const c = cm[y][x]; if (this.collisionMode === 'color') {
+                    if (c === 1) { this.ctx.fillStyle = 'rgba(239,68,68,0.35)'; this.ctx.fillRect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE); }
+                    else if (c === 2) { this.ctx.fillStyle = 'rgba(59,130,246,0.35)'; this.ctx.fillRect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE); }
+                } else {
+                    const cx = x*TILE_SIZE + TILE_SIZE/2, cy = y*TILE_SIZE + TILE_SIZE/2;
+                    this.ctx.font = `bold ${12/this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
+                    if (c === 1) { this.ctx.strokeStyle = 'rgba(0,0,0,0.8)'; this.ctx.fillStyle = '#fca5a5'; }
+                    else if (c === 2) { this.ctx.strokeStyle = 'rgba(0,0,0,0.8)'; this.ctx.fillStyle = '#93c5fd'; }
+                    else { this.ctx.strokeStyle = 'rgba(0,0,0,0.6)'; this.ctx.fillStyle = 'rgba(255,255,255,0.7)'; }
+                    this.ctx.lineWidth = 3 / this.scale; this.ctx.strokeText(String(c), cx, cy); this.ctx.fillText(String(c), cx, cy);
+                }
+            }
+        }
+    }
+
+    drawObjects() {
+        if (!this.mapData) return;
+        const all = [...this.mapData.effectObjects, ...this.mapData.vgos, ...this.mapData.effData].sort((a,b) => a.y - b.y);
+        all.forEach(obj => { if ('templateId' in obj) this.drawEffect(obj); else if ('mapGoId' in obj) this.drawVgo(obj); else if ('raw' in obj) this.drawEff(obj); });
+    }
+
+    drawVgo(vgo) {
+        const cx = vgo.x + TILE_SIZE/2, cy = vgo.y + TILE_SIZE/2;
+        this.ctx.beginPath(); this.ctx.arc(cx, cy, TILE_SIZE/2, 0, 2*Math.PI); this.ctx.fillStyle = 'rgba(59,130,246,0.7)'; this.ctx.fill();
+        this.ctx.strokeStyle = '#2563EB'; this.ctx.lineWidth = 1.5/this.scale; this.ctx.stroke();
+        if (vgo.name) { this.ctx.fillStyle = '#fff'; this.ctx.font = `bold ${11/this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'bottom'; this.ctx.strokeStyle = '#000'; this.ctx.lineWidth = 2.5/this.scale; const ty = vgo.y - (4/this.scale); this.ctx.strokeText(vgo.name, cx, ty); this.ctx.fillText(vgo.name, cx, ty); }
+    }
+
+    drawEff(eff) {
+        this.ctx.fillStyle = 'rgba(34,197,94,0.5)'; this.ctx.strokeStyle = '#22c55e'; this.ctx.lineWidth = 1/this.scale;
+        this.ctx.fillRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE); this.ctx.strokeRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
+        if (eff.text) { this.ctx.fillStyle = '#fff'; this.ctx.font = `bold ${14/this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle'; this.ctx.strokeStyle = '#000'; this.ctx.lineWidth = 3/this.scale; const tx = eff.x + TILE_SIZE/2, ty = eff.y + TILE_SIZE/2; this.ctx.strokeText(eff.text, tx, ty); this.ctx.fillText(eff.text, tx, ty); }
+    }
+
+    drawEffect(effect) {
+        const icon = this.effectIcons.get(effect.templateId);
+        if (icon && icon.complete) {
+            const dx = effect.x + (TILE_SIZE - icon.width)/2, dy = effect.y + (TILE_SIZE - icon.height)/2;
+            this.ctx.drawImage(icon, dx, dy, icon.width, icon.height);
+        } else {
+            this.ctx.fillStyle = 'rgba(255,255,0,0.5)'; this.ctx.strokeStyle = '#cccc00'; this.ctx.lineWidth = 1/this.scale; this.ctx.fillRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE); this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+        }
+    }
+}
+
+new MapViewerApp();
+    </script>
+</body>
+</html>
