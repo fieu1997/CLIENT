@@ -662,6 +662,8 @@ class MapViewerApp {
                 }
             }
             
+            out.writeByte(-1);
+            
             const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
