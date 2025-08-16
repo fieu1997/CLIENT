@@ -173,7 +173,7 @@
                 </div>
                  <div class="file-input-group">
                     <label for="icon-input">Ảnh Icons (.png)</label>
-                    <input type="file" id="icon-input" accept=".png" multiple>
+                    <input type="file" id="icon-input" accept=".png" multiple webkitdirectory directory>
                 </div>
             </div>
 
@@ -250,9 +250,15 @@
                     <label for="tile-edit-mode">Bật chế độ sửa tile (vẽ)</label>
                 </div>
                 <div class="small-muted">Tile đang chọn: <strong id="selected-tile-id">1</strong></div>
-                <div id="tile-palette-panel" style="display:none; margin-top: 0.5rem;">
+                <div id="tile-palette-panel" style="display:none; margin-top: 0.5rem; max-height:200px; overflow:auto;">
                     <div id="tile-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 24px); gap:4px;"></div>
                 </div>
+            </div>
+
+            <div class="control-group" id="icon-palette-panel" style="display:none;">
+                <h2>Danh sách Icon (0-999)</h2>
+                <div id="icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:220px; overflow:auto;"></div>
+                <div class="small-muted" style="margin-top: 0.5rem;">Kéo icon từ danh sách và thả vào map để thêm nhanh.</div>
             </div>
 
             <div class="control-group">
@@ -460,6 +466,9 @@ class MapViewerApp {
         this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
         this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
         this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+        this.canvas.addEventListener('drop', this.handleDrop.bind(this));
+        this.canvas.addEventListener('dragover', this.handleDragOver.bind(this));
+        this.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
         window.addEventListener('resize', this.render.bind(this));
     }
 
@@ -693,19 +702,18 @@ class MapViewerApp {
         let failedCount = 0;
         const totalFiles = files.length;
 
-        for (const file of files) {
-            const iconId = parseInt(file.name.split('.')[0]);
-            if (!isNaN(iconId)) {
-                const image = new Image();
-                image.src = URL.createObjectURL(file);
-                const promise = new Promise((resolve, reject) => {
-                    image.onload = resolve;
-                    image.onerror = reject;
-                });
-
+        // detect sprite index by filename: ex: 000.png -> id 0
+        for (const f of files) {
+            const name = f.name.replace(/\\\\/g,'/');
+            const base = name.substring(name.lastIndexOf('/')+1);
+            const baseNoExt = base.split('.')[0];
+            const iconId = parseInt(baseNoExt);
+            if (!isNaN(iconId) && iconId >= 0 && iconId <= 999) {
+                const img = new Image();
+                img.src = URL.createObjectURL(f);
                 try {
-                    await promise;
-                    this.effectIcons.set(iconId, image);
+                    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+                    this.effectIcons.set(iconId, img);
                     loadedCount++;
                 } catch {
                     failedCount++;
@@ -714,8 +722,11 @@ class MapViewerApp {
                 failedCount++;
             }
         }
-        
+
         this.log(`Hoàn tất tải icons. Thành công: ${loadedCount}, Thất bại: ${failedCount}. Vẽ lại bản đồ.`);
+        this.populateIconPalette();
+        const pnl = document.getElementById('icon-palette-panel');
+        if (pnl) pnl.style.display = 'block';
         this.render();
     }
     
@@ -1118,7 +1129,7 @@ class MapViewerApp {
         }
     }
 
-    drawObjects() {
+        drawObjects() {
         if (!this.mapData) return;
         
         const allObjects = [
@@ -1126,14 +1137,23 @@ class MapViewerApp {
             ...this.mapData.vgos,
             ...this.mapData.effData,
         ].sort((a,b) => a.y - b.y);
-
+ 
         allObjects.forEach(obj => {
             if ('templateId' in obj) this.drawEffect(obj);
             else if ('mapGoId' in obj) this.drawVgo(obj);
             else if ('raw' in obj) this.drawEff(obj);
         });
     }
-
+ 
+    highlightSelection(x, y, w, h) {
+        this.ctx.save();
+        this.ctx.lineWidth = 2 / this.scale;
+        this.ctx.strokeStyle = '#ffd700';
+        this.ctx.setLineDash([6 / this.scale, 4 / this.scale]);
+        this.ctx.strokeRect(x, y, w, h);
+        this.ctx.restore();
+    }
+ 
     drawVgo(vgo) {
         const centerX = vgo.x + TILE_SIZE / 2;
         const centerY = vgo.y + TILE_SIZE / 2;
@@ -1193,6 +1213,13 @@ class MapViewerApp {
             this.ctx.lineWidth = 1 / this.scale;
             this.ctx.fillRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
             this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+        }
+        if (this.isIconEditingMode && this.selectedEffectObject === effect) {
+            const w = icon && icon.complete ? icon.width : TILE_SIZE;
+            const h = icon && icon.complete ? icon.height : TILE_SIZE;
+            const x = icon && icon.complete ? effect.x + (TILE_SIZE - icon.width) / 2 : effect.x;
+            const y = icon && icon.complete ? effect.y + (TILE_SIZE - icon.height) / 2 : effect.y;
+            this.highlightSelection(x, y, w, h);
         }
     }
 
@@ -1282,6 +1309,88 @@ class MapViewerApp {
             this.selectedEffectObject = null;
             this.render();
             this.log(`Đã xóa icon ${id}.`);
+        }
+    }
+
+    populateIconPalette() {
+        try {
+            const panel = document.getElementById('icon-palette-container');
+            if (!panel) return;
+            panel.innerHTML = '';
+            const entries = Array.from(this.effectIcons.entries())
+                .filter(([id, img]) => id >= 0 && id <= 999)
+                .sort((a,b) => a[0] - b[0]);
+            for (const [id, img] of entries) {
+                const wrap = document.createElement('div');
+                wrap.style.display = 'flex';
+                wrap.style.flexDirection = 'column';
+                wrap.style.alignItems = 'center';
+                wrap.style.gap = '2px';
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(24, Math.min(32, img.width));
+                canvas.height = Math.max(24, Math.min(32, img.height));
+                const cctx = canvas.getContext('2d');
+                cctx.imageSmoothingEnabled = false;
+                cctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.draggable = true;
+                canvas.dataset.iconId = String(id);
+                canvas.title = `Icon ${id}`;
+                canvas.addEventListener('dragstart', (ev) => {
+                    ev.dataTransfer?.setData('text/plain', String(id));
+                });
+
+                const label = document.createElement('div');
+                label.textContent = String(id);
+                label.style.fontSize = '10px';
+                label.style.color = '#ccc';
+                wrap.appendChild(canvas);
+                wrap.appendChild(label);
+                panel.appendChild(wrap);
+            }
+        } catch {}
+    }
+
+    handleDrop(event) {
+        event.preventDefault();
+        if (!this.mapData || !event.dataTransfer) return;
+        const data = event.dataTransfer.getData('text/plain');
+        const iconId = parseInt(data, 10);
+        if (Number.isFinite(iconId)) {
+            const rect = this.canvas.getBoundingClientRect();
+            const sx = event.clientX - rect.left;
+            const sy = event.clientY - rect.top;
+            const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+            const obj = { templateId: iconId, x: Math.round(mx), y: Math.round(my), text: '', name: `Effect ID: ${iconId}` };
+            this.mapData.effectObjects.push(obj);
+            this.selectedEffectObject = obj;
+            this.render();
+            this.log(`Kéo thả icon ${iconId} vào map.`);
+        }
+    }
+
+    handleDragOver(event) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    }
+
+    handleRightClick(event) {
+        event.preventDefault();
+        if (!this.mapData) return;
+        const rect = this.canvas.getBoundingClientRect();
+        const sx = event.clientX - rect.left;
+        const sy = event.clientY - rect.top;
+        const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+        const hit = this.hitTestEffectObject(mx, my);
+        if (hit) {
+            const idx = this.mapData.effectObjects.indexOf(hit);
+            if (idx >= 0) {
+                const id = hit.templateId;
+                this.mapData.effectObjects.splice(idx, 1);
+                if (this.selectedEffectObject === hit) this.selectedEffectObject = null;
+                this.render();
+                this.log(`Đã xóa icon ${id} bằng chuột phải.`);
+            }
         }
     }
 
