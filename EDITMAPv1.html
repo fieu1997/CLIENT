@@ -466,56 +466,108 @@ class MapViewerApp {
                         });
                     }
                     this.log(`Đã đọc ${this.mapData.effectObjects.length} đối tượng trang trí (Icons).`);
-        
-                    if (objectReader.offset + 2 <= objectReader.getBuffer().byteLength) {
-                        this.mapData.internalVgoCount = objectReader.readShort();
-                        this.log(`Đã đọc trường internal VGO count, giá trị: ${this.mapData.internalVgoCount}.`);
-                    } else {
-                        this.mapData.internalVgoCount = 0;
-                    }
-        
-                    const effMagicNumber = [0x03, 0x65, 0x66, 0x66];
-                    while (!objectReader.eof) {
-                        const currentOffset = objectReader.offset;
-                        if (currentOffset + 4 > objectReader.getBuffer().byteLength) break;
-                        
-                        const isEff = objectReader.getUint8At(currentOffset) === effMagicNumber[0] &&
-                                        objectReader.getUint8At(currentOffset + 1) === effMagicNumber[1] &&
-                                        objectReader.getUint8At(currentOffset + 2) === effMagicNumber[2] &&
-                                        objectReader.getUint8At(currentOffset + 3) === effMagicNumber[3];
-        
-                        if (isEff) {
-                            objectReader.seek(4, 'current');
-                            try {
-                                const dataLength = objectReader.readByte();
-                                if (objectReader.offset + dataLength > objectReader.getBuffer().byteLength) break;
-                                const effStringBytes = objectReader.readBytes(dataLength);
-                                const effString = this.textDecoder.decode(effStringBytes);
-                                const parts = effString.split(';');
-                                if (parts.length >= 4) {
-                                    const [id, x, y] = [parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3])];
-                                    if (!isNaN(id) && !isNaN(x) && !isNaN(y)) {
-                                         this.mapData.effData.push({ id, x: x * TILE_SIZE, y: y * TILE_SIZE, name: `Eff ID: ${id}`, text: `Eff: ${id}`, raw: effString });
+                    
+                    // Try to parse CMD12 overlay key/value pairs first. If it fails, fallback to legacy internal format.
+                    const tryParsePairs = () => {
+                        const save = objectReader.offset;
+                        try {
+                            if (objectReader.offset + 2 > objectBlockBuffer.byteLength) return false;
+                            const pairCount = objectReader.readShort();
+                            if (pairCount < 0 || pairCount > 10000) { objectReader.offset = save; return false; }
+                            let parsed = 0;
+                            for (let i = 0; i < pairCount; i++) {
+                                if (objectReader.offset + 2 > objectBlockBuffer.byteLength) throw new Error('overflow');
+                                let keyLen = objectReader.readByte(); keyLen = (keyLen + 256) % 256;
+                                if (objectReader.offset + keyLen > objectBlockBuffer.byteLength) throw new Error('overflow');
+                                const key = this.textDecoder.decode(objectReader.readBytes(keyLen));
+                                let valLen = objectReader.readByte(); valLen = (valLen + 256) % 256;
+                                if (objectReader.offset + valLen > objectBlockBuffer.byteLength) throw new Error('overflow');
+                                const val = this.textDecoder.decode(objectReader.readBytes(valLen));
+                                if (key === 'eff') {
+                                    const effString = val;
+                                    const parts = effString.split(';');
+                                    if (parts.length >= 4) {
+                                        const id = parseInt(parts[1], 10);
+                                        const x = parseInt(parts[2], 10);
+                                        const y = parseInt(parts[3], 10);
+                                        if (!isNaN(id) && !isNaN(x) && !isNaN(y)) {
+                                            this.mapData.effData.push({ id, x: x * TILE_SIZE, y: y * TILE_SIZE, name: `Eff ID: ${id}`, text: `Eff: ${id}`, raw: effString });
+                                        }
+                                    }
+                                } else if (key === 'vgo') {
+                                    const parts = val.split(';');
+                                    if (parts.length >= 4) {
+                                        const tx = parseInt(parts[0], 10);
+                                        const ty = parseInt(parts[1], 10);
+                                        const name = parts[2] || '';
+                                        const type = parseInt(parts[3], 10) || 0;
+                                        if (!isNaN(tx) && !isNaN(ty)) {
+                                            this.mapData.vgos.push({ x: tx * TILE_SIZE, y: ty * TILE_SIZE, name, mapGoId: type, xNew: 0, yNew: 0 });
+                                        }
                                     }
                                 }
-                            } catch (e) { break; }
-                        } else if (objectReader.getBuffer().byteLength - currentOffset >= 5) {
-                            try {
-                                const vgoX = objectReader.readShort();
-                                const vgoY = objectReader.readShort();
-                                const vgoType = objectReader.readByte();
-                                let name = "";
-                                if (vgoType === 0) {
-                                    const nameLen = objectReader.readByte();
-                                    name = this.textDecoder.decode(objectReader.readBytes(nameLen));
-                                } else if (vgoType === 1) {
-                                    name = objectReader.readUTF();
-                                } else { break; }
-                                this.mapData.vgos.push({ x: vgoX * TILE_SIZE, y: vgoY * TILE_SIZE, name, mapGoId: vgoType + 1, xNew: 0, yNew: 0 });
-                            } catch (e) { break; }
-                        } else { break; }
+                                parsed++;
+                            }
+                            this.log(`Đã đọc ${parsed} cặp chuỗi (overlay pairs).`);
+                            return true;
+                        } catch (e) {
+                            objectReader.offset = save;
+                            return false;
+                        }
+                    };
+
+                    if (!tryParsePairs()) {
+                        // Legacy internal format fallback
+                        if (objectReader.offset + 2 <= objectReader.getBuffer().byteLength) {
+                            this.mapData.internalVgoCount = objectReader.readShort();
+                            this.log(`Đã đọc trường internal VGO count, giá trị: ${this.mapData.internalVgoCount}.`);
+                        } else {
+                            this.mapData.internalVgoCount = 0;
+                        }
+        
+                        const effMagicNumber = [0x03, 0x65, 0x66, 0x66];
+                        while (!objectReader.eof) {
+                            const currentOffset = objectReader.offset;
+                            if (currentOffset + 4 > objectReader.getBuffer().byteLength) break;
+                            
+                            const isEff = objectReader.getUint8At(currentOffset) === effMagicNumber[0] &&
+                                            objectReader.getUint8At(currentOffset + 1) === effMagicNumber[1] &&
+                                            objectReader.getUint8At(currentOffset + 2) === effMagicNumber[2] &&
+                                            objectReader.getUint8At(currentOffset + 3) === effMagicNumber[3];
+        
+                            if (isEff) {
+                                objectReader.seek(4, 'current');
+                                try {
+                                    const dataLength = objectReader.readByte();
+                                    if (objectReader.offset + dataLength > objectReader.getBuffer().byteLength) break;
+                                    const effStringBytes = objectReader.readBytes(dataLength);
+                                    const effString = this.textDecoder.decode(effStringBytes);
+                                    const parts = effString.split(';');
+                                    if (parts.length >= 4) {
+                                        const [id, x, y] = [parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3])];
+                                        if (!isNaN(id) && !isNaN(x) && !isNaN(y)) {
+                                             this.mapData.effData.push({ id, x: x * TILE_SIZE, y: y * TILE_SIZE, name: `Eff ID: ${id}`, text: `Eff: ${id}`, raw: effString });
+                                        }
+                                    }
+                                } catch (e) { break; }
+                            } else if (objectReader.getBuffer().byteLength - currentOffset >= 5) {
+                                try {
+                                    const vgoX = objectReader.readShort();
+                                    const vgoY = objectReader.readShort();
+                                    const vgoType = objectReader.readByte();
+                                    let name = "";
+                                    if (vgoType === 0) {
+                                        const nameLen = objectReader.readByte();
+                                        name = this.textDecoder.decode(objectReader.readBytes(nameLen));
+                                    } else if (vgoType === 1) {
+                                        name = objectReader.readUTF();
+                                    } else { break; }
+                                    this.mapData.vgos.push({ x: vgoX * TILE_SIZE, y: vgoY * TILE_SIZE, name, mapGoId: vgoType + 1, xNew: 0, yNew: 0 });
+                                } catch (e) { break; }
+                            } else { break; }
+                        }
+                        this.log(`Đã đọc ${this.mapData.vgos.length} VGOs và ${this.mapData.effData.length} 'eff' blocks.`);
                     }
-                    this.log(`Đã đọc ${this.mapData.vgos.length} VGOs và ${this.mapData.effData.length} 'eff' blocks.`);
                     reader.seek(objectBlockStartOffset + objectBlockLength, 'start');
                 }
             }
