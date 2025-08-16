@@ -411,6 +411,7 @@ class MapViewerApp {
     isIconEditingMode = false;
     selectedEffectObject = null;
     isDraggingIcon = false;
+    isCtrlDown = false;
     // Undo state
     undoStack = [];
     undoButton = null;
@@ -482,6 +483,9 @@ class MapViewerApp {
         this.canvas.addEventListener('dragover', this.handleDragOver.bind(this));
         this.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
         window.addEventListener('resize', this.render.bind(this));
+        // Ctrl tracking
+        window.addEventListener('keydown', (e) => { if (e.key === 'Control') this.isCtrlDown = true; });
+        window.addEventListener('keyup', (e) => { if (e.key === 'Control') this.isCtrlDown = false; });
     }
 
     async handleMapFile(event) {
@@ -973,7 +977,11 @@ class MapViewerApp {
     handleWheel(event) {
         if (!this.mapData) return;
         event.preventDefault();
-        
+        // Always allow zoom with wheel if Ctrl is down
+        if (!this.isCtrlDown && (this.isTileEditingMode || this.isIconEditingMode)) {
+            // ignore wheel when editing unless Ctrl is pressed
+            return;
+        }
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
@@ -995,13 +1003,17 @@ class MapViewerApp {
         const sx = event.clientX - rect.left;
         const sy = event.clientY - rect.top;
         const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
-        if (this.isTileEditingMode) {
+        // Allow panning while holding Ctrl regardless of edit modes
+        if (this.isCtrlDown) {
+            this.isPanning = true;
+        }
+        if (this.isTileEditingMode && !this.isCtrlDown) {
             this.isPainting = true;
             this.paintTileAt(mx, my);
             return;
         }
-        // Icon edit: select icon under cursor
-        if (this.isIconEditingMode) {
+        // Icon edit: select icon under cursor (unless panning with Ctrl)
+        if (this.isIconEditingMode && !this.isCtrlDown) {
             const hit = this.hitTestEffectObject(mx, my);
             if (hit) {
                 this.selectedEffectObject = hit;
@@ -1025,11 +1037,11 @@ class MapViewerApp {
         const sx = event.clientX - rect.left;
         const sy = event.clientY - rect.top;
         const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
-        if (this.isTileEditingMode && this.isPainting) {
+        if (this.isTileEditingMode && this.isPainting && !this.isCtrlDown) {
             this.paintTileAt(mx, my);
             return;
         }
-        if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon) {
+        if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) {
             // push snapshot only once when drag starts
             if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
             this.selectedEffectObject.x = Math.round(mx);
