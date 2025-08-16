@@ -156,20 +156,20 @@ class MapParser:
             if not self.eof() and self.get_byte_at(self.offset) == -1:
                 self.read_byte()  # Skip separator
                 
-            # Parse object block
+                        # Parse object block
             if not self.eof():
                 object_block_length = self.read_short()
                 object_block_start = self.offset
-                
-                # Decorative Icons (Effect Objects)
-                num_icons = self.read_short()
-                for i in range(num_icons):
-                    if self.offset + 6 > object_block_start + object_block_length:
-                        break
-                    template_id = self.read_short()
-                    x = self.read_short()
-                    y = self.read_short()
-                                         map_data.decorative_icons.append({
+                 
+                 # Decorative Icons (Effect Objects)
+                 num_icons = self.read_short()
+                 for i in range(num_icons):
+                     if self.offset + 6 > object_block_start + object_block_length:
+                         break
+                     template_id = self.read_short()
+                     x = self.read_short()
+                     y = self.read_short()
+                     map_data.decorative_icons.append({
                          'template_id': template_id,
                          'x': x * TILE_SIZE,  # Convert to pixels like TypeScript
                          'y': y * TILE_SIZE,  # Convert to pixels like TypeScript
@@ -199,14 +199,14 @@ class MapParser:
                                         eff_id = int(parts[1])
                                         eff_x = int(parts[2])
                                         eff_y = int(parts[3])
-                                                                                 map_data.effect_triggers.append({
-                                             'id': eff_id,
-                                             'x': eff_x * TILE_SIZE,  # Convert to pixels
-                                             'y': eff_y * TILE_SIZE,  # Convert to pixels
-                                             'name': f'Trigger ID: {eff_id}',
-                                             'raw': eff_string
-                                         })
-                                    except ValueError:
+                                        map_data.effect_triggers.append({
+                                            'id': eff_id,
+                                            'x': eff_x * TILE_SIZE,  # Convert to pixels
+                                            'y': eff_y * TILE_SIZE,  # Convert to pixels
+                                            'name': f'Trigger ID: {eff_id}',
+                                            'raw': eff_string
+                                        })
+                                    except (ValueError, IndexError):
                                         pass
                             else:
                                 break
@@ -235,12 +235,12 @@ class MapParser:
                             else:
                                 break
                                 
-                                                         map_data.internal_vgos.append({
-                                 'x': vgo_x * TILE_SIZE,  # Convert to pixels
-                                 'y': vgo_y * TILE_SIZE,  # Convert to pixels
-                                 'name': name,
-                                 'type': vgo_type
-                             })
+                            map_data.internal_vgos.append({
+                                'x': vgo_x * TILE_SIZE,  # Convert to pixels
+                                'y': vgo_y * TILE_SIZE,  # Convert to pixels
+                                'name': name,
+                                'type': vgo_type
+                            })
                             
                         except:
                             break
@@ -269,12 +269,12 @@ class MapParser:
                             except ValueError:
                                 pass
                                 
-                                                         map_data.map_warps.append({
-                                 'x': x,  # Already in pixels from TypeScript code
-                                 'y': y,  # Already in pixels from TypeScript code
-                                 'dest_map_name': dest_map_name,
-                                 'dest_map_id': map_id
-                             })
+                                                        map_data.map_warps.append({
+                                'x': x,  # Already in pixels from TypeScript code
+                                'y': y,  # Already in pixels from TypeScript code
+                                'dest_map_name': dest_map_name,
+                                'dest_map_id': map_id
+                            })
                 except:
                     pass
                     
