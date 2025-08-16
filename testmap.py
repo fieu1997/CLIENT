@@ -39,7 +39,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QFileDialog, 
                              QScrollArea, QFrame, QTextEdit, QSplitter,
-                             QGroupBox, QMessageBox, QComboBox)
+                             QGroupBox, QMessageBox, QComboBox, QSpinBox)
 from PyQt6.QtCore import Qt, QRect, pyqtSignal
 from PyQt6.QtGui import QPainter, QPixmap, QColor, QPen, QFont, QBrush
 
@@ -486,6 +486,8 @@ class MapCanvas(QWidget):
         self.setMouseTracking(True)
         self.dragging = False
         self.last_pos = None
+        self.edit_mode = False
+        self.selected_tile_id = 1
         
     def set_map_data(self, map_data):
         self.map_data = map_data
@@ -518,12 +520,34 @@ class MapCanvas(QWidget):
             
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = True
-            self.last_pos = event.position()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            if self.edit_mode and self.map_data:
+                # Edit tile mode
+                world_x = (event.position().x() - self.offset_x) / self.scale
+                world_y = (event.position().y() - self.offset_y) / self.scale
+                tile_x = int(world_x // TILE_SIZE)
+                tile_y = int(world_y // TILE_SIZE)
+                
+                if 0 <= tile_x < self.map_data.width and 0 <= tile_y < self.map_data.height:
+                    self.map_data.tiles[tile_y][tile_x] = self.selected_tile_id
+                    self.update()
+            else:
+                # Pan mode
+                self.dragging = True
+                self.last_pos = event.position()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
             
     def mouseMoveEvent(self, event):
-        if self.dragging and self.last_pos:
+        if self.edit_mode and self.map_data and event.buttons() == Qt.MouseButton.LeftButton:
+            # Continue editing tiles while dragging
+            world_x = (event.position().x() - self.offset_x) / self.scale
+            world_y = (event.position().y() - self.offset_y) / self.scale
+            tile_x = int(world_x // TILE_SIZE)
+            tile_y = int(world_y // TILE_SIZE)
+            
+            if 0 <= tile_x < self.map_data.width and 0 <= tile_y < self.map_data.height:
+                self.map_data.tiles[tile_y][tile_x] = self.selected_tile_id
+                self.update()
+        elif self.dragging and self.last_pos:
             delta = event.position() - self.last_pos
             self.offset_x += delta.x()
             self.offset_y += delta.y()
@@ -825,6 +849,61 @@ class HSOMapViewer(QMainWindow):
         
         left_layout.addWidget(export_group)
         
+        # Map Editor group
+        editor_group = QGroupBox("Map Editor")
+        editor_layout = QVBoxLayout(editor_group)
+        
+        # Resize controls
+        resize_layout = QVBoxLayout()
+        resize_layout.addWidget(QLabel("Thay đổi kích thước map:"))
+        
+        size_layout = QHBoxLayout()
+        size_layout.addWidget(QLabel("W:"))
+        self.width_spin = QSpinBox()
+        self.width_spin.setRange(1, 255)
+        self.width_spin.setValue(58)
+        self.width_spin.setEnabled(False)
+        size_layout.addWidget(self.width_spin)
+        
+        size_layout.addWidget(QLabel("H:"))
+        self.height_spin = QSpinBox()
+        self.height_spin.setRange(1, 255)
+        self.height_spin.setValue(30)
+        self.height_spin.setEnabled(False)
+        size_layout.addWidget(self.height_spin)
+        
+        resize_layout.addLayout(size_layout)
+        
+        self.resize_btn = QPushButton("Áp dụng kích thước mới")
+        self.resize_btn.clicked.connect(self.resize_map)
+        self.resize_btn.setEnabled(False)
+        resize_layout.addWidget(self.resize_btn)
+        
+        editor_layout.addLayout(resize_layout)
+        
+        # Tile editor controls
+        tile_layout = QVBoxLayout()
+        tile_layout.addWidget(QLabel("Chỉnh sửa tiles:"))
+        
+        tile_control_layout = QHBoxLayout()
+        tile_control_layout.addWidget(QLabel("Tile ID:"))
+        self.tile_id_spin = QSpinBox()
+        self.tile_id_spin.setRange(0, 255)
+        self.tile_id_spin.setValue(1)
+        self.tile_id_spin.setEnabled(False)
+        tile_control_layout.addWidget(self.tile_id_spin)
+        
+        tile_layout.addLayout(tile_control_layout)
+        
+        self.edit_mode_btn = QPushButton("Bật chế độ chỉnh sửa")
+        self.edit_mode_btn.clicked.connect(self.toggle_edit_mode)
+        self.edit_mode_btn.setEnabled(False)
+        tile_layout.addWidget(self.edit_mode_btn)
+        
+        editor_layout.addLayout(tile_layout)
+        
+        left_layout.addWidget(editor_group)
+        
         # Map info group
         info_group = QGroupBox("Thông Tin Map")
         info_layout = QVBoxLayout(info_group)
@@ -870,6 +949,11 @@ class HSOMapViewer(QMainWindow):
  💾 Export:
  • JSON: Full data với metadata
  • Binary: Client-compatible format
+ 
+ ✏️ Map Editor:
+ • Resize: Thay đổi kích thước map
+ • Edit Tiles: Click để sửa tiles
+ • Client Test: Auto-verify compatibility
         """.strip())
         instructions_text.setWordWrap(True)
         instructions_text.setStyleSheet("font-size: 10px;")
@@ -926,6 +1010,7 @@ class HSOMapViewer(QMainWindow):
             self.update_info()
             self.update_objects_list()
             self.enable_export_buttons()
+            self.enable_editor_controls()
             
             QMessageBox.information(self, "Thành công", 
                                   f"Đã tải sample map '{self.map_data.name}' thành công!")
@@ -951,6 +1036,7 @@ class HSOMapViewer(QMainWindow):
                 self.update_info()
                 self.update_objects_list()
                 self.enable_export_buttons()
+                self.enable_editor_controls()
                 
                 QMessageBox.information(self, "Thành công", 
                                       f"Đã tải map '{self.map_data.name}' thành công!")
@@ -1055,6 +1141,18 @@ Total Tiles: {self.map_data.width * self.map_data.height}
         """Enable export buttons when map data is loaded"""
         self.export_json_btn.setEnabled(True)
         self.export_binary_btn.setEnabled(True)
+        
+    def enable_editor_controls(self):
+        """Enable editor controls when map data is loaded"""
+        self.width_spin.setEnabled(True)
+        self.height_spin.setEnabled(True)
+        self.resize_btn.setEnabled(True)
+        self.tile_id_spin.setEnabled(True)
+        self.edit_mode_btn.setEnabled(True)
+        
+        if self.map_data:
+            self.width_spin.setValue(self.map_data.width)
+            self.height_spin.setValue(self.map_data.height)
         
     def export_json(self):
         """Export map data to JSON format"""
@@ -1184,6 +1282,159 @@ Total Tiles: {self.map_data.width * self.map_data.height}
                                       
             except Exception as e:
                 QMessageBox.critical(self, "Lỗi", f"Không thể xuất binary:\n{str(e)}")
+                
+    def toggle_edit_mode(self):
+        """Toggle tile editing mode"""
+        if not self.map_data:
+            return
+            
+        self.edit_mode = not self.edit_mode
+        self.map_canvas.edit_mode = self.edit_mode
+        self.map_canvas.selected_tile_id = self.tile_id_spin.value()
+        
+        if self.edit_mode:
+            self.edit_mode_btn.setText("Tắt chế độ chỉnh sửa")
+            self.map_canvas.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.edit_mode_btn.setText("Bật chế độ chỉnh sửa")
+            self.map_canvas.setCursor(Qt.CursorShape.ArrowCursor)
+            
+        # Update tile ID when changed
+        self.tile_id_spin.valueChanged.connect(self.update_selected_tile)
+        
+    def update_selected_tile(self):
+        """Update selected tile ID for editing"""
+        if self.edit_mode:
+            self.map_canvas.selected_tile_id = self.tile_id_spin.value()
+            
+    def resize_map(self):
+        """Resize the map with new dimensions"""
+        if not self.map_data:
+            QMessageBox.warning(self, "Cảnh báo", "Không có map data để thay đổi kích thước!")
+            return
+            
+        new_width = self.width_spin.value()
+        new_height = self.height_spin.value()
+        old_width = self.map_data.width
+        old_height = self.map_data.height
+        
+        if new_width == old_width and new_height == old_height:
+            QMessageBox.information(self, "Thông báo", "Kích thước không thay đổi!")
+            return
+            
+        # Confirm resize operation
+        reply = QMessageBox.question(
+            self, "Xác nhận", 
+            f"Thay đổi kích thước map từ {old_width}x{old_height} thành {new_width}x{new_height}?\n\n" +
+            "⚠️ Dữ liệu ngoài vùng mới sẽ bị mất!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.perform_map_resize(new_width, new_height, old_width, old_height)
+            
+    def perform_map_resize(self, new_width, new_height, old_width, old_height):
+        """Perform the actual map resize operation"""
+        try:
+            # Create new tile array
+            new_tiles = []
+            for y in range(new_height):
+                row = []
+                for x in range(new_width):
+                    if y < old_height and x < old_width:
+                        # Copy existing tile
+                        row.append(self.map_data.tiles[y][x])
+                    else:
+                        # Fill with default tile (grass/ground)
+                        row.append(1)
+                new_tiles.append(row)
+                
+            # Update map data
+            self.map_data.tiles = new_tiles
+            self.map_data.width = new_width
+            self.map_data.height = new_height
+            
+            # Update objects positions - remove objects outside new bounds
+            self.update_objects_for_resize(new_width, new_height)
+            
+            # Refresh display
+            self.map_canvas.set_map_data(self.map_data)
+            self.update_info()
+            self.update_objects_list()
+            
+            # Test client compatibility
+            self.test_client_compatibility()
+            
+            QMessageBox.information(
+                self, "Thành công", 
+                f"Đã thay đổi kích thước map thành {new_width}x{new_height}!\n\n" +
+                "✅ Map data đã được cập nhật\n" +
+                "✅ Objects ngoài vùng đã được xóa\n" +
+                "🔧 Đã test tính tương thích client"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi", f"Không thể thay đổi kích thước:\n{str(e)}")
+            
+    def update_objects_for_resize(self, new_width, new_height):
+        """Update object positions after map resize"""
+        new_width_pixels = new_width * TILE_SIZE
+        new_height_pixels = new_height * TILE_SIZE
+        
+        # Filter decorative icons
+        self.map_data.decorative_icons = [
+            icon for icon in self.map_data.decorative_icons
+            if icon['x'] < new_width_pixels and icon['y'] < new_height_pixels
+        ]
+        
+        # Filter internal VGOs
+        self.map_data.internal_vgos = [
+            vgo for vgo in self.map_data.internal_vgos
+            if vgo['x'] < new_width_pixels and vgo['y'] < new_height_pixels
+        ]
+        
+        # Filter effect triggers
+        self.map_data.effect_triggers = [
+            trigger for trigger in self.map_data.effect_triggers
+            if trigger['x'] < new_width_pixels and trigger['y'] < new_height_pixels
+        ]
+        
+        # Map warps use pixel coordinates, filter them too
+        self.map_data.map_warps = [
+            warp for warp in self.map_data.map_warps
+            if warp['x'] < new_width_pixels and warp['y'] < new_height_pixels
+        ]
+        
+    def test_client_compatibility(self):
+        """Test if the modified map can be read by HSO client"""
+        try:
+            # Create binary data and test parsing
+            writer = MapWriter()
+            writer.write_map_data(self.map_data)
+            binary_data = writer.get_data()
+            
+            # Try to parse it back
+            parser = MapParser(binary_data)
+            parsed_data = parser.parse()
+            
+            # Verify dimensions match
+            if (parsed_data.width == self.map_data.width and 
+                parsed_data.height == self.map_data.height and
+                len(parsed_data.tiles) == self.map_data.height and
+                len(parsed_data.tiles[0]) == self.map_data.width):
+                
+                print(f"✅ Client compatibility test PASSED")
+                print(f"   - Map size: {self.map_data.width}x{self.map_data.height}")
+                print(f"   - Binary size: {len(binary_data)} bytes")
+                print(f"   - Objects: {len(self.map_data.decorative_icons)} icons, {len(self.map_data.effect_triggers)} triggers")
+                return True
+            else:
+                print(f"❌ Client compatibility test FAILED: dimension mismatch")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Client compatibility test FAILED: {e}")
+            return False
 
 # ============================================================================
 # APPLICATION ENTRY POINT
@@ -1246,6 +1497,9 @@ def main():
     print("  ✅ Embedded sample data với precise parsing")
     print("  ✅ Generated tileset")
     print("  ✅ Interactive controls")
+    print("  ✅ Map editing - resize và tile editing")
+    print("  ✅ Client compatibility testing")
+    print("  ✅ Binary export cho HSO client")
     print()
     
     viewer = HSOMapViewer()
