@@ -623,6 +623,16 @@ class MapViewerApp {
             out.writeByte(-1); // no minimap/bg
             out.writeShort(overlayBlob.length);
             out.writeBytes(overlayBlob);
+            
+            // Minimal tail so eq.h can continue parsing safely
+            // point markers count = 0
+            out.writeByte(0);
+            // s2 = 0 (ft.d.b false)
+            out.writeByte(0);
+            // cs.u = 0 (any default byte)
+            out.writeByte(0);
+            // cs.w = 0 (!=3 so cn.W = false)
+            out.writeByte(0);
 
             const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
