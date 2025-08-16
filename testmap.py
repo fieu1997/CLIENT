@@ -34,6 +34,8 @@ import base64
 import zlib
 import io
 import binascii
+import json
+import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QFileDialog, 
                              QScrollArea, QFrame, QTextEdit, QSplitter,
@@ -282,6 +284,105 @@ class MapParser:
             
         except Exception as e:
             raise Exception(f"Parse error at offset {self.offset}: {e}")
+
+class MapWriter:
+    def __init__(self):
+        self.data = bytearray()
+        
+    def write_byte(self, value):
+        self.data.append(value & 0xFF)
+        
+    def write_ubyte(self, value):
+        self.data.append(value & 0xFF)
+        
+    def write_short(self, value):
+        self.data.extend(struct.pack('>h', value))
+        
+    def write_ushort(self, value):
+        self.data.extend(struct.pack('>H', value))
+        
+    def write_utf(self, text):
+        encoded = text.encode('utf-8')
+        self.write_ushort(len(encoded))
+        self.data.extend(encoded)
+        
+    def write_bytes(self, data):
+        self.data.extend(data)
+        
+    def get_data(self):
+        return bytes(self.data)
+        
+    def write_map_data(self, map_data):
+        """Write map data in HSO binary format"""
+        # Header padding
+        self.write_ushort(0)
+        
+        # Map header
+        self.write_utf(map_data.name)
+        self.write_short(map_data.version)
+        self.write_ubyte(map_data.width)
+        self.write_ubyte(map_data.height)
+        self.write_ubyte(map_data.tileset_id)
+        
+        # Tile data
+        for row in map_data.tiles:
+            for tile in row:
+                self.write_ubyte(tile)
+                
+        # Separator
+        self.write_byte(0xFF)
+        
+        # Object block
+        object_writer = MapWriter()
+        
+        # Decorative icons count
+        object_writer.write_short(len(map_data.decorative_icons))
+        
+        # Decorative icons data
+        for icon in map_data.decorative_icons:
+            object_writer.write_short(icon['template_id'])
+            object_writer.write_short(icon['x'] // TILE_SIZE)  # Convert back to tile coords
+            object_writer.write_short(icon['y'] // TILE_SIZE)
+            
+        # Internal VGO count
+        object_writer.write_short(len(map_data.internal_vgos))
+        
+        # Internal VGOs
+        for vgo in map_data.internal_vgos:
+            object_writer.write_short(vgo['x'] // TILE_SIZE)  # Convert back to tile coords
+            object_writer.write_short(vgo['y'] // TILE_SIZE)
+            object_writer.write_ubyte(vgo['type'])
+            
+            if vgo['type'] == 0:
+                name_bytes = vgo['name'].encode('utf-8')
+                object_writer.write_ubyte(len(name_bytes))
+                object_writer.write_bytes(name_bytes)
+            elif vgo['type'] == 1:
+                object_writer.write_utf(vgo['name'])
+                
+        # Effect triggers (eff data)
+        for trigger in map_data.effect_triggers:
+            object_writer.write_bytes(b'\x03eff')  # Magic
+            eff_string = trigger['raw']
+            eff_bytes = eff_string.encode('utf-8')
+            object_writer.write_ubyte(len(eff_bytes))
+            object_writer.write_bytes(eff_bytes)
+            
+        # Write object block length and data
+        object_data = object_writer.get_data()
+        self.write_short(len(object_data))
+        self.write_bytes(object_data)
+        
+        # Map warps (external VGOs)
+        if map_data.map_warps:
+            self.write_ubyte(len(map_data.map_warps))
+            for warp in map_data.map_warps:
+                self.write_short(warp['x'])  # Already in pixels
+                self.write_short(warp['y'])
+                self.write_utf(warp['dest_map_name'])
+                
+        # EOF marker
+        self.write_byte(0xFF)
 
 # ============================================================================
 # TILESET GENERATOR
@@ -708,6 +809,22 @@ class HSOMapViewer(QMainWindow):
         
         left_layout.addWidget(file_group)
         
+        # Export group
+        export_group = QGroupBox("Xuất Data")
+        export_layout = QVBoxLayout(export_group)
+        
+        self.export_json_btn = QPushButton("Xuất JSON")
+        self.export_json_btn.clicked.connect(self.export_json)
+        self.export_json_btn.setEnabled(False)
+        export_layout.addWidget(self.export_json_btn)
+        
+        self.export_binary_btn = QPushButton("Xuất Binary (Client)")
+        self.export_binary_btn.clicked.connect(self.export_binary)
+        self.export_binary_btn.setEnabled(False)
+        export_layout.addWidget(self.export_binary_btn)
+        
+        left_layout.addWidget(export_group)
+        
         # Map info group
         info_group = QGroupBox("Thông Tin Map")
         info_layout = QVBoxLayout(info_group)
@@ -745,10 +862,14 @@ class HSOMapViewer(QMainWindow):
 🔴 Map Warps (1 → Làng Sói Trắng)
 🟩 Effect Triggers (7)
 
-📋 Sample Data:
-Map: "Ngôi Làng Nhỏ" (ID: 0)
-→ Warp to "Làng Sói Trắng" (ID: 1)
-Size: 58×30 tiles
+ 📋 Sample Data:
+ Map: "Ngôi Làng Nhỏ" (ID: 0)
+ → Warp to "Làng Sói Trắng" (ID: 1)
+ Size: 58×30 tiles
+ 
+ 💾 Export:
+ • JSON: Full data với metadata
+ • Binary: Client-compatible format
         """.strip())
         instructions_text.setWordWrap(True)
         instructions_text.setStyleSheet("font-size: 10px;")
@@ -804,6 +925,7 @@ Size: 58×30 tiles
             self.map_canvas.set_map_data(self.map_data)
             self.update_info()
             self.update_objects_list()
+            self.enable_export_buttons()
             
             QMessageBox.information(self, "Thành công", 
                                   f"Đã tải sample map '{self.map_data.name}' thành công!")
@@ -828,6 +950,7 @@ Size: 58×30 tiles
                 self.map_canvas.set_map_data(self.map_data)
                 self.update_info()
                 self.update_objects_list()
+                self.enable_export_buttons()
                 
                 QMessageBox.information(self, "Thành công", 
                                       f"Đã tải map '{self.map_data.name}' thành công!")
@@ -927,6 +1050,140 @@ Total Tiles: {self.map_data.width * self.map_data.height}
                 text += f"     Raw: {trigger['raw']}\n"
             
         self.objects_text.setPlainText(text)
+        
+    def enable_export_buttons(self):
+        """Enable export buttons when map data is loaded"""
+        self.export_json_btn.setEnabled(True)
+        self.export_binary_btn.setEnabled(True)
+        
+    def export_json(self):
+        """Export map data to JSON format"""
+        if not self.map_data:
+            QMessageBox.warning(self, "Cảnh báo", "Không có map data để xuất!")
+            return
+            
+        # Convert map data to JSON-serializable format
+        json_data = {
+            "map_info": {
+                "name": self.map_data.name,
+                "version": self.map_data.version,
+                "width": self.map_data.width,
+                "height": self.map_data.height,
+                "tileset_id": self.map_data.tileset_id
+            },
+            "tiles": self.map_data.tiles,
+            "objects": {
+                "decorative_icons": [
+                    {
+                        "template_id": icon['template_id'],
+                        "x_pixel": icon['x'],
+                        "y_pixel": icon['y'],
+                        "x_tile": icon['x'] // TILE_SIZE,
+                        "y_tile": icon['y'] // TILE_SIZE,
+                        "name": icon['name']
+                    }
+                    for icon in self.map_data.decorative_icons
+                ],
+                "internal_vgos": [
+                    {
+                        "x_pixel": vgo['x'],
+                        "y_pixel": vgo['y'],
+                        "x_tile": vgo['x'] // TILE_SIZE,
+                        "y_tile": vgo['y'] // TILE_SIZE,
+                        "name": vgo['name'],
+                        "type": vgo['type']
+                    }
+                    for vgo in self.map_data.internal_vgos
+                ],
+                "map_warps": [
+                    {
+                        "x_pixel": warp['x'],
+                        "y_pixel": warp['y'],
+                        "dest_map_name": warp['dest_map_name'],
+                        "dest_map_id": warp['dest_map_id']
+                    }
+                    for warp in self.map_data.map_warps
+                ],
+                "effect_triggers": [
+                    {
+                        "id": trigger['id'],
+                        "x_pixel": trigger['x'],
+                        "y_pixel": trigger['y'],
+                        "x_tile": trigger['x'] // TILE_SIZE,
+                        "y_tile": trigger['y'] // TILE_SIZE,
+                        "name": trigger['name'],
+                        "raw_data": trigger['raw']
+                    }
+                    for trigger in self.map_data.effect_triggers
+                ]
+            },
+            "statistics": {
+                "total_tiles": self.map_data.width * self.map_data.height,
+                "decorative_icons_count": len(self.map_data.decorative_icons),
+                "internal_vgos_count": len(self.map_data.internal_vgos),
+                "map_warps_count": len(self.map_data.map_warps),
+                "effect_triggers_count": len(self.map_data.effect_triggers)
+            },
+            "metadata": {
+                "exported_by": "HSO Map Viewer - Test Edition",
+                "export_format": "JSON",
+                "tile_size": TILE_SIZE,
+                "coordinate_system": "Both tile and pixel coordinates included"
+            }
+        }
+        
+        # Ask user for save location
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Xuất JSON", f"{self.map_data.name}.json", "JSON Files (*.json)"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(json_data, f, ensure_ascii=False, indent=2)
+                    
+                QMessageBox.information(self, "Thành công", 
+                                      f"Đã xuất JSON thành công!\nFile: {os.path.basename(file_path)}")
+                                      
+            except Exception as e:
+                QMessageBox.critical(self, "Lỗi", f"Không thể xuất JSON:\n{str(e)}")
+                
+    def export_binary(self):
+        """Export map data to binary format for HSO client"""
+        if not self.map_data:
+            QMessageBox.warning(self, "Cảnh báo", "Không có map data để xuất!")
+            return
+            
+        # Ask user for save location (no extension for client compatibility)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Xuất Binary (Client)", f"{self.map_data.tileset_id}", "HSO Map Files (*)"
+        )
+        
+        if file_path:
+            try:
+                writer = MapWriter()
+                writer.write_map_data(self.map_data)
+                binary_data = writer.get_data()
+                
+                with open(file_path, 'wb') as f:
+                    f.write(binary_data)
+                    
+                # Also create a hex file for verification
+                hex_file = file_path + ".hex"
+                with open(hex_file, 'w') as f:
+                    hex_string = binascii.hexlify(binary_data).decode('ascii')
+                    # Format as readable hex
+                    formatted_hex = ' '.join(hex_string[i:i+2] for i in range(0, len(hex_string), 2))
+                    f.write(formatted_hex.upper())
+                    
+                QMessageBox.information(self, "Thành công", 
+                                      f"Đã xuất binary thành công!\n" +
+                                      f"File client: {os.path.basename(file_path)}\n" +
+                                      f"File hex: {os.path.basename(hex_file)}\n" +
+                                      f"Size: {len(binary_data)} bytes")
+                                      
+            except Exception as e:
+                QMessageBox.critical(self, "Lỗi", f"Không thể xuất binary:\n{str(e)}")
 
 # ============================================================================
 # APPLICATION ENTRY POINT
