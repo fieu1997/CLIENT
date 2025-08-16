@@ -169,12 +169,12 @@ class MapParser:
                     template_id = self.read_short()
                     x = self.read_short()
                     y = self.read_short()
-                    map_data.decorative_icons.append({
-                        'template_id': template_id,
-                        'x': x,
-                        'y': y,
-                        'name': f'Icon ID: {template_id}'
-                    })
+                                         map_data.decorative_icons.append({
+                         'template_id': template_id,
+                         'x': x * TILE_SIZE,  # Convert to pixels like TypeScript
+                         'y': y * TILE_SIZE,  # Convert to pixels like TypeScript
+                         'name': f'Icon ID: {template_id}'
+                     })
                     
                 # Internal VGO count
                 if self.offset + 2 <= object_block_start + object_block_length:
@@ -199,13 +199,13 @@ class MapParser:
                                         eff_id = int(parts[1])
                                         eff_x = int(parts[2])
                                         eff_y = int(parts[3])
-                                        map_data.effect_triggers.append({
-                                            'id': eff_id,
-                                            'x': eff_x,
-                                            'y': eff_y,
-                                            'name': f'Trigger ID: {eff_id}',
-                                            'raw': eff_string
-                                        })
+                                                                                 map_data.effect_triggers.append({
+                                             'id': eff_id,
+                                             'x': eff_x * TILE_SIZE,  # Convert to pixels
+                                             'y': eff_y * TILE_SIZE,  # Convert to pixels
+                                             'name': f'Trigger ID: {eff_id}',
+                                             'raw': eff_string
+                                         })
                                     except ValueError:
                                         pass
                             else:
@@ -235,12 +235,12 @@ class MapParser:
                             else:
                                 break
                                 
-                            map_data.internal_vgos.append({
-                                'x': vgo_x,
-                                'y': vgo_y,
-                                'name': name,
-                                'type': vgo_type
-                            })
+                                                         map_data.internal_vgos.append({
+                                 'x': vgo_x * TILE_SIZE,  # Convert to pixels
+                                 'y': vgo_y * TILE_SIZE,  # Convert to pixels
+                                 'name': name,
+                                 'type': vgo_type
+                             })
                             
                         except:
                             break
@@ -269,12 +269,12 @@ class MapParser:
                             except ValueError:
                                 pass
                                 
-                            map_data.map_warps.append({
-                                'x': x, 
-                                'y': y, 
-                                'dest_map_name': dest_map_name,
-                                'dest_map_id': map_id
-                            })
+                                                         map_data.map_warps.append({
+                                 'x': x,  # Already in pixels from TypeScript code
+                                 'y': y,  # Already in pixels from TypeScript code
+                                 'dest_map_name': dest_map_name,
+                                 'dest_map_id': map_id
+                             })
                 except:
                     pass
                     
@@ -492,69 +492,121 @@ class MapCanvas(QWidget):
                 
                 painter.drawPixmap(dst_rect, self.tileset_pixmap, src_rect)
                 
-    def draw_objects(self, painter):
-        # Draw decorative icons (trees, rocks, etc.)
+         def draw_objects(self, painter):
+         # Sort all objects by Y coordinate for proper layering (like TypeScript)
+         all_objects = []
+         
+         # Add decorative icons (effectObjects)
+         for icon in self.map_data.decorative_icons:
+             all_objects.append(('icon', icon))
+             
+         # Add internal VGOs
+         for vgo in self.map_data.internal_vgos:
+             all_objects.append(('vgo', vgo))
+             
+         # Add map warps (external VGOs)
+         for warp in self.map_data.map_warps:
+             all_objects.append(('warp', warp))
+             
+         # Add effect triggers (effData)
+         for trigger in self.map_data.effect_triggers:
+             all_objects.append(('trigger', trigger))
+             
+         # Sort by Y coordinate
+         all_objects.sort(key=lambda obj: obj[1]['y'])
+         
+         # Draw all objects in order
+         for obj_type, obj in all_objects:
+             if obj_type == 'icon':
+                 self.draw_decorative_icon(painter, obj)
+             elif obj_type == 'vgo':
+                 self.draw_internal_vgo(painter, obj)
+             elif obj_type == 'warp':
+                 self.draw_map_warp(painter, obj)
+             elif obj_type == 'trigger':
+                 self.draw_effect_trigger(painter, obj)
+                 
+    def draw_decorative_icon(self, painter, icon):
+        # Draw placeholder yellow square (like TypeScript drawEffect with placeholder)
         painter.setPen(QPen(QColor(255, 255, 0), 2))
-        painter.setBrush(QBrush(QColor(255, 255, 0, 100)))
-        for icon in self.map_data.decorative_icons:
-            x = icon['x'] * TILE_SIZE
-            y = icon['y'] * TILE_SIZE
-            rect = QRect(x, y, TILE_SIZE, TILE_SIZE)
-            painter.drawRect(rect)
-            
-            # Draw ID
-            painter.setPen(QColor(0, 0, 0))
-            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(icon['template_id']))
-            
-        # Draw internal VGOs (internal warps) - if any
-        painter.setPen(QPen(QColor(0, 150, 255), 3))
-        painter.setBrush(QBrush(QColor(0, 150, 255, 100)))
-        for vgo in self.map_data.internal_vgos:
-            x = vgo['x'] * TILE_SIZE + TILE_SIZE // 2
-            y = vgo['y'] * TILE_SIZE + TILE_SIZE // 2
-            painter.drawEllipse(x - 12, y - 12, 24, 24)
-            
-            # Draw name
+        painter.setBrush(QBrush(QColor(255, 255, 0, 128)))
+        rect = QRect(icon['x'], icon['y'], TILE_SIZE, TILE_SIZE)
+        painter.drawRect(rect)
+        
+        # Draw ID
+        painter.setPen(QColor(0, 0, 0))
+        painter.setFont(QFont("Arial", int(8 / self.scale), QFont.Weight.Bold))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(icon['template_id']))
+        
+    def draw_internal_vgo(self, painter, vgo):
+        # Draw like TypeScript drawVgo
+        center_x = vgo['x'] + TILE_SIZE // 2
+        center_y = vgo['y'] + TILE_SIZE // 2
+        
+        painter.setPen(QPen(QColor(59, 130, 246), int(1.5 / self.scale)))
+        painter.setBrush(QBrush(QColor(59, 130, 246, 179)))  # 0.7 alpha = 179
+        painter.drawEllipse(center_x - TILE_SIZE//2, center_y - TILE_SIZE//2, TILE_SIZE, TILE_SIZE)
+        
+        # Draw name above
+        if vgo['name']:
             painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-            text_rect = QRect(x - 50, y - 30, 100, 20)
-            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, vgo['name'])
+            painter.setFont(QFont("Arial", int(11 / self.scale), QFont.Weight.Bold))
             
-        # Draw map warps (external VGOs)
+            # Draw text outline
+            painter.setPen(QColor(0, 0, 0))
+            text_y = vgo['y'] - int(4 / self.scale)
+            painter.drawText(QRect(center_x - 50, text_y - 10, 100, 20), 
+                           Qt.AlignmentFlag.AlignCenter, vgo['name'])
+            
+            # Draw text fill
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(QRect(center_x - 50, text_y - 10, 100, 20), 
+                           Qt.AlignmentFlag.AlignCenter, vgo['name'])
+        
+    def draw_map_warp(self, painter, warp):
+        # Draw larger circle for external VGOs (like TypeScript)
+        center_x = warp['x'] + TILE_SIZE // 2
+        center_y = warp['y'] + TILE_SIZE // 2
+        
         painter.setPen(QPen(QColor(255, 0, 150), 3))
         painter.setBrush(QBrush(QColor(255, 0, 150, 100)))
-        for warp in self.map_data.map_warps:
-            x = warp['x'] * TILE_SIZE + TILE_SIZE // 2
-            y = warp['y'] * TILE_SIZE + TILE_SIZE // 2
-            painter.drawEllipse(x - 15, y - 15, 30, 30)
-            
-            # Draw destination map name
-            painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-            text_rect = QRect(x - 60, y - 35, 120, 20)
-            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, warp['dest_map_name'])
-            
-            # Draw map ID if known
-            if warp['dest_map_id'] >= 0:
-                painter.setPen(QColor(255, 255, 0))
-                painter.setFont(QFont("Arial", 8))
-                id_rect = QRect(x - 30, y + 20, 60, 15)
-                painter.drawText(id_rect, Qt.AlignmentFlag.AlignCenter, f"ID: {warp['dest_map_id']}")
-            
-        # Draw effect triggers 
-        painter.setPen(QPen(QColor(0, 255, 0), 2))
-        painter.setBrush(QBrush(QColor(0, 255, 0, 100)))
-        for trigger in self.map_data.effect_triggers:
-            x = trigger['x'] * TILE_SIZE
-            y = trigger['y'] * TILE_SIZE
-            rect = QRect(x, y, TILE_SIZE, TILE_SIZE)
-            painter.drawRect(rect)
-            
-            # Draw ID
-            painter.setPen(QColor(0, 0, 0))
-            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"T{trigger['id']}")
+        painter.drawEllipse(center_x - 15, center_y - 15, 30, 30)
+        
+        # Draw destination map name
+        painter.setPen(QColor(255, 255, 255))
+        painter.setFont(QFont("Arial", int(10 / self.scale), QFont.Weight.Bold))
+        text_rect = QRect(center_x - 60, center_y - 35, 120, 20)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, warp['dest_map_name'])
+        
+        # Draw map ID if known
+        if warp['dest_map_id'] >= 0:
+            painter.setPen(QColor(255, 255, 0))
+            painter.setFont(QFont("Arial", int(8 / self.scale)))
+            id_rect = QRect(center_x - 30, center_y + 20, 60, 15)
+            painter.drawText(id_rect, Qt.AlignmentFlag.AlignCenter, f"ID: {warp['dest_map_id']}")
+             
+    def draw_effect_trigger(self, painter, trigger):
+        # Draw like TypeScript drawEff
+        painter.setPen(QPen(QColor(34, 197, 94), int(1 / self.scale)))
+        painter.setBrush(QBrush(QColor(34, 197, 94, 128)))  # 0.5 alpha = 128
+        rect = QRect(trigger['x'], trigger['y'], TILE_SIZE, TILE_SIZE)
+        painter.drawRect(rect)
+        
+        # Draw text in center
+        painter.setPen(QColor(255, 255, 255))
+        painter.setFont(QFont("Arial", int(14 / self.scale), QFont.Weight.Bold))
+        
+        # Draw text outline
+        painter.setPen(QColor(0, 0, 0))
+        text_x = trigger['x'] + TILE_SIZE // 2
+        text_y = trigger['y'] + TILE_SIZE // 2
+        painter.drawText(QRect(trigger['x'], trigger['y'], TILE_SIZE, TILE_SIZE), 
+                       Qt.AlignmentFlag.AlignCenter, f"T{trigger['id']}")
+        
+        # Draw text fill
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(QRect(trigger['x'], trigger['y'], TILE_SIZE, TILE_SIZE), 
+                       Qt.AlignmentFlag.AlignCenter, f"T{trigger['id']}")
             
     def draw_info(self, painter):
         if not self.map_data:
