@@ -604,6 +604,39 @@ class MapViewerApp {
                 overlayWriter.writeShort(xTile);
                 overlayWriter.writeShort(yTile);
             }
+            // Append string pairs (eff, vgo) as per client cs.c parsing
+            const encoder = new TextEncoder();
+            const internalVgos = (Array.isArray(this.mapData.vgos) ? this.mapData.vgos : []).filter(v => (v.mapGoId|0) < 100);
+            const effs = Array.isArray(this.mapData.effData) ? this.mapData.effData : [];
+            const pairs = [];
+            // eff pairs: key 'eff', value from eff.raw
+            for (const e of effs) {
+                if (!e || !e.raw) continue;
+                const key = 'eff';
+                const val = String(e.raw);
+                const keyBytes = encoder.encode(key);
+                const valBytes = encoder.encode(val);
+                if (keyBytes.length <= 255 && valBytes.length <= 255) pairs.push([keyBytes, valBytes]);
+            }
+            // vgo pairs: key 'vgo', value 'x;y;name;type'
+            for (const v of internalVgos) {
+                const key = 'vgo';
+                const xTile = Math.max(0, Math.min(width - 1, Math.round((v.x || 0) / TILE_SIZE)));
+                const yTile = Math.max(0, Math.min(height - 1, Math.round((v.y || 0) / TILE_SIZE)));
+                const type = Math.max(0, (v.mapGoId|0));
+                const name = String(v.name || '');
+                const val = `${xTile};${yTile};${name};${type}`;
+                const keyBytes = encoder.encode(key);
+                const valBytes = encoder.encode(val);
+                if (keyBytes.length <= 255 && valBytes.length <= 255) pairs.push([keyBytes, valBytes]);
+            }
+            overlayWriter.writeShort(pairs.length);
+            for (const [keyBytes, valBytes] of pairs) {
+                overlayWriter.writeByte(keyBytes.length);
+                overlayWriter.writeBytes(keyBytes);
+                overlayWriter.writeByte(valBytes.length);
+                overlayWriter.writeBytes(valBytes);
+            }
             const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
 
             const out = new BinaryWriter();
