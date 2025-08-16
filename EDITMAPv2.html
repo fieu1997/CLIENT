@@ -270,8 +270,18 @@
                         <option value="set-2">Đặt 2 (nước)</option>
                     </select>
                 </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="collision-blocked-id">ID tile cho 1 (chặn)</label>
+                        <input id="collision-blocked-id" type="number" min="0" max="255" step="1" value="32">
+                    </div>
+                    <div>
+                        <label for="collision-water-id">ID tile cho 2 (nước)</label>
+                        <input id="collision-water-id" type="number" min="0" max="255" step="1" value="26">
+                    </div>
+                </div>
                 <button id="bake-collision-button" class="action-button">Ghi va chạm vào tile (bake)</button>
-                <div class="small-muted" style="margin-top: 0.5rem;">Lưu ý: Bake sẽ sửa ID tile theo ngưỡng F/G để phản ánh va chạm.</div>
+                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Chọn ID tile phù hợp cho 1/2 để bake không làm đổi hình ô không mong muốn.</div>
             </div>
 
             <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
@@ -456,6 +466,8 @@ class MapViewerApp {
         if (cea) cea.addEventListener('change', (e) => { this.collisionEditAction = e.target.value; });
         const bakeBtn = document.getElementById('bake-collision-button');
         if (bakeBtn) bakeBtn.addEventListener('click', this.bakeCollisionIntoTiles.bind(this));
+        this.blockedIdInput = document.getElementById('collision-blocked-id');
+        this.waterIdInput = document.getElementById('collision-water-id');
 
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -1255,6 +1267,8 @@ class MapViewerApp {
     bakeCollisionIntoTiles() {
         if (!this.mapData || !this.mapData.collisionMap.length) return;
         const { width, height, tileMap } = this.mapData;
+        const blockedId = Math.max(0, Math.min(255, parseInt((this.blockedIdInput?.value)||`${this.fThreshold}`, 10) || this.fThreshold));
+        const waterId = Math.max(0, Math.min(255, parseInt((this.waterIdInput?.value)||`${this.gThreshold}`, 10) || this.gThreshold));
         let changed = 0;
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
@@ -1262,11 +1276,12 @@ class MapViewerApp {
                 const id = tileMap[y][x] | 0;
                 let newId = id;
                 if (col === 0) {
-                    if (id === 0 || id >= this.fThreshold) newId = 1; // make walkable by picking 1 as safe
+                    // choose a simple ground id (1) unless 1 collides with blockedId/waterId usage
+                    newId = (id === 0 || id === blockedId || id === waterId) ? 1 : id;
                 } else if (col === 1) {
-                    if (id !== 0 && id < this.fThreshold) newId = this.fThreshold; // ensure blocked
+                    newId = blockedId; // force to chosen blocked tile id
                 } else if (col === 2) {
-                    if (id < this.gThreshold) newId = this.gThreshold; // ensure water threshold
+                    newId = waterId; // force to chosen water tile id
                 }
                 if (newId !== id) { tileMap[y][x] = newId; changed++; }
             }
