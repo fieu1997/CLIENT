@@ -183,6 +183,11 @@
             </div>
 
             <div class="control-group">
+                <h2>Hoàn tác</h2>
+                <button id="undo-button" class="action-button" disabled>↶ Hoàn tác</button>
+            </div>
+
+            <div class="control-group">
                 <h2>3. Chỉnh Kích Thước</h2>
                 <div class="grid-2">
                     <div>
@@ -406,6 +411,10 @@ class MapViewerApp {
     isIconEditingMode = false;
     selectedEffectObject = null;
     isDraggingIcon = false;
+    // Undo state
+    undoStack = [];
+    undoButton = null;
+    dragStartedForUndo = false;
 
     constructor() {
         this.canvas = document.getElementById('map-canvas');
@@ -414,6 +423,7 @@ class MapViewerApp {
         this.welcomeMessage = document.getElementById('welcome-message');
         this.logEntriesContainer = document.getElementById('log-entries-container');
         this.saveMapButton = document.getElementById('save-map-button');
+        this.undoButton = document.getElementById('undo-button');
         this.textDecoder = new TextDecoder('utf-8');
 
         this.initEventListeners();
@@ -461,6 +471,7 @@ class MapViewerApp {
         if (iem) iem.addEventListener('change', (e) => { this.isIconEditingMode = e.target.checked; this.canvas.style.cursor = this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab'); });
         if (addIconBtn) addIconBtn.addEventListener('click', this.handleAddIconAtCenter.bind(this));
         if (delIconBtn) delIconBtn.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
+        if (this.undoButton) this.undoButton.addEventListener('click', this.handleUndo.bind(this));
         
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -1019,6 +1030,8 @@ class MapViewerApp {
             return;
         }
         if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon) {
+            // push snapshot only once when drag starts
+            if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
             this.selectedEffectObject.x = Math.round(mx);
             this.selectedEffectObject.y = Math.round(my);
             this.render();
@@ -1038,6 +1051,7 @@ class MapViewerApp {
         this.isPainting = false;
         this.isPanning = false;
         this.isDraggingIcon = false;
+        this.dragStartedForUndo = false;
         this.canvas.classList.remove('grabbing');
     }
 
@@ -1272,6 +1286,7 @@ class MapViewerApp {
         const ty = Math.floor(my / TILE_SIZE);
         if (tx < 0 || ty < 0 || tx >= this.mapData.width || ty >= this.mapData.height) return;
         if ((this.mapData.tileMap[ty][tx] | 0) === this.selectedTileId) return;
+        this.pushUndoSnapshot();
         this.mapData.tileMap[ty][tx] = this.selectedTileId | 0;
         this.calculateCollisionMap();
         this.render();
@@ -1297,6 +1312,7 @@ class MapViewerApp {
         const iconId = Math.max(0, Math.min(999, parseInt((idInput?.value)||'0', 10) || 0));
         const cx = (this.canvas.width / 2 - this.panX) / this.scale;
         const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+        this.pushUndoSnapshot();
         const obj = { templateId: iconId, x: Math.round(cx), y: Math.round(cy), text: '', name: `Effect ID: ${iconId}` };
         this.mapData.effectObjects.push(obj);
         this.selectedEffectObject = obj;
@@ -1310,6 +1326,7 @@ class MapViewerApp {
             this.log('Chưa chọn icon nào. Hãy bật sửa icon và click vào icon trên map.');
             return;
         }
+        this.pushUndoSnapshot();
         const idx = this.mapData.effectObjects.indexOf(this.selectedEffectObject);
         if (idx >= 0) {
             const id = this.selectedEffectObject.templateId;
@@ -1400,6 +1417,40 @@ class MapViewerApp {
                 this.log(`Đã xóa icon ${id} bằng chuột phải.`);
             }
         }
+    }
+
+    // --- Undo ---
+    pushUndoSnapshot() {
+        if (!this.mapData) return;
+        const snap = {
+            tileMap: this.mapData.tileMap.map(row => row.slice()),
+            effectObjects: this.mapData.effectObjects.map(o => ({...o})),
+            vgos: this.mapData.vgos.map(v => ({...v})),
+            effData: this.mapData.effData.map(e => ({...e})),
+            width: this.mapData.width,
+            height: this.mapData.height
+        };
+        this.undoStack.push(snap);
+        if (this.undoButton) this.undoButton.disabled = false;
+        // cap stack size
+        if (this.undoStack.length > 100) this.undoStack.shift();
+    }
+
+    handleUndo() {
+        if (!this.mapData || this.undoStack.length === 0) return;
+        const snap = this.undoStack.pop();
+        this.mapData.tileMap = snap.tileMap.map(row => row.slice());
+        this.mapData.effectObjects = snap.effectObjects.map(o => ({...o}));
+        this.mapData.vgos = snap.vgos.map(v => ({...v}));
+        this.mapData.effData = snap.effData.map(e => ({...e}));
+        this.mapData.width = snap.width;
+        this.mapData.height = snap.height;
+        if (this.undoButton && this.undoStack.length === 0) this.undoButton.disabled = true;
+        this.selectedEffectObject = null;
+        this.calculateCollisionMap();
+        this.resetView();
+        this.render();
+        this.log('Đã hoàn tác thay đổi gần nhất.');
     }
 
 }
