@@ -256,32 +256,20 @@
             </div>
 
             <div class="control-group">
-                <h2>6. Sửa Va chạm</h2>
+                <h2>6. Sửa Icon (0-999)</h2>
                 <div class="inline" style="margin-bottom: 0.5rem;">
-                    <input type="checkbox" id="collision-edit-mode">
-                    <label for="collision-edit-mode">Bật chế độ sửa va chạm (nhấp để đổi)</label>
+                    <input type="checkbox" id="icon-edit-mode">
+                    <label for="icon-edit-mode">Bật chế độ sửa icon (kéo thả / xóa)</label>
                 </div>
                 <div class="file-input-group">
-                    <label for="collision-edit-action">Hành động</label>
-                    <select id="collision-edit-action">
-                        <option value="cycle" selected>Nhấp để chuyển 0 → 1 → 2 → 0</option>
-                        <option value="set-0">Đặt 0 (đi được)</option>
-                        <option value="set-1">Đặt 1 (chặn)</option>
-                        <option value="set-2">Đặt 2 (nước)</option>
-                    </select>
+                    <label for="icon-id-input">ID icon (0-999)</label>
+                    <input id="icon-id-input" type="number" min="0" max="999" step="1" value="0">
                 </div>
-                <div class="grid-2">
-                    <div>
-                        <label for="collision-blocked-id">ID tile cho 1 (chặn)</label>
-                        <input id="collision-blocked-id" type="number" min="0" max="255" step="1" value="32">
-                    </div>
-                    <div>
-                        <label for="collision-water-id">ID tile cho 2 (nước)</label>
-                        <input id="collision-water-id" type="number" min="0" max="255" step="1" value="26">
-                    </div>
+                <div class="inline" style="gap: 0.5rem;">
+                    <button id="add-icon-button" class="action-button">Thêm icon</button>
+                    <button id="delete-icon-button" class="action-button" style="background-color:#d9534f;">Xóa icon đã chọn</button>
                 </div>
-                <button id="bake-collision-button" class="action-button">Ghi va chạm vào tile (bake)</button>
-                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Chọn ID tile phù hợp cho 1/2 để bake không làm đổi hình ô không mong muốn.</div>
+                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Bật chế độ sửa icon, click vào icon để chọn rồi kéo thả để đổi vị trí. Chuột phải lên icon để xóa nhanh.</div>
             </div>
 
             <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
@@ -408,9 +396,9 @@ class MapViewerApp {
     isPainting = false;
     selectedTileId = 1;
 
-    // Collision edit state
-    isCollisionEditingMode = false;
-    collisionEditAction = 'cycle';
+    // Icon edit state
+    isIconEditingMode = false;
+    selectedEffectObject = null;
 
     constructor() {
         this.canvas = document.getElementById('map-canvas');
@@ -459,16 +447,14 @@ class MapViewerApp {
         const tem = document.getElementById('tile-edit-mode');
         const stid = document.getElementById('selected-tile-id');
         if (tem) tem.addEventListener('change', (e) => { this.isTileEditingMode = e.target.checked; this.isPainting = false; this.canvas.style.cursor = this.isTileEditingMode ? 'crosshair' : 'grab'; });
-        // Collision edit controls
-        const cem = document.getElementById('collision-edit-mode');
-        const cea = document.getElementById('collision-edit-action');
-        if (cem) cem.addEventListener('change', (e) => { this.isCollisionEditingMode = e.target.checked; this.canvas.style.cursor = this.isCollisionEditingMode ? 'crosshair' : (this.isTileEditingMode ? 'crosshair' : 'grab'); });
-        if (cea) cea.addEventListener('change', (e) => { this.collisionEditAction = e.target.value; });
-        const bakeBtn = document.getElementById('bake-collision-button');
-        if (bakeBtn) bakeBtn.addEventListener('click', this.bakeCollisionIntoTiles.bind(this));
-        this.blockedIdInput = document.getElementById('collision-blocked-id');
-        this.waterIdInput = document.getElementById('collision-water-id');
-
+                // Icon edit controls
+        const iem = document.getElementById('icon-edit-mode');
+        const addIconBtn = document.getElementById('add-icon-button');
+        const delIconBtn = document.getElementById('delete-icon-button');
+        if (iem) iem.addEventListener('change', (e) => { this.isIconEditingMode = e.target.checked; this.canvas.style.cursor = this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab'); });
+        if (addIconBtn) addIconBtn.addEventListener('click', this.handleAddIconAtCenter.bind(this));
+        if (delIconBtn) delIconBtn.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
+        
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
         this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -991,8 +977,15 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
-        if (this.isCollisionEditingMode) {
-            this.applyCollisionEditAt(mx, my);
+        // Icon edit: select icon under cursor
+        if (this.isIconEditingMode) {
+            const hit = this.hitTestEffectObject(mx, my);
+            if (hit) {
+                this.selectedEffectObject = hit;
+                this.log(`Đã chọn icon trang trí ID ${hit.templateId}. Kéo để di chuyển.`);
+            } else {
+                this.selectedEffectObject = null;
+            }
             return;
         }
         this.isPanning = true;
@@ -1010,6 +1003,12 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
+        if (this.isIconEditingMode && this.selectedEffectObject) {
+            this.selectedEffectObject.x = Math.round(mx);
+            this.selectedEffectObject.y = Math.round(my);
+            this.render();
+            return;
+        }
         if (!this.isPanning) return;
         const dx = event.clientX - this.lastMouseX;
         const dy = event.clientY - this.lastMouseY;
@@ -1023,6 +1022,7 @@ class MapViewerApp {
     handleMouseUp() {
         this.isPainting = false;
         this.isPanning = false;
+        this.selectedEffectObject = null;
         this.canvas.classList.remove('grabbing');
     }
 
@@ -1246,50 +1246,45 @@ class MapViewerApp {
         this.render();
     }
 
-    // --- Collision editing ---
-    applyCollisionEditAt(mx, my) {
-        if (!this.mapData || !this.mapData.collisionMap.length) return;
-        const tx = Math.floor(mx / TILE_SIZE);
-        const ty = Math.floor(my / TILE_SIZE);
-        if (tx < 0 || ty < 0 || tx >= this.mapData.width || ty >= this.mapData.height) return;
-        const current = this.mapData.collisionMap[ty][tx] | 0;
-        let next = current;
-        switch (this.collisionEditAction) {
-            case 'cycle': next = (current + 1) % 3; break;
-            case 'set-0': next = 0; break;
-            case 'set-1': next = 1; break;
-            case 'set-2': next = 2; break;
-        }
-        this.mapData.collisionMap[ty][tx] = next;
-        this.render();
-    }
-
-    bakeCollisionIntoTiles() {
-        if (!this.mapData || !this.mapData.collisionMap.length) return;
-        const { width, height, tileMap } = this.mapData;
-        const blockedId = Math.max(0, Math.min(255, parseInt((this.blockedIdInput?.value)||`${this.fThreshold}`, 10) || this.fThreshold));
-        const waterId = Math.max(0, Math.min(255, parseInt((this.waterIdInput?.value)||`${this.gThreshold}`, 10) || this.gThreshold));
-        let changed = 0;
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const col = this.mapData.collisionMap[y][x] | 0;
-                const id = tileMap[y][x] | 0;
-                let newId = id;
-                if (col === 0) {
-                    // choose a simple ground id (1) unless 1 collides with blockedId/waterId usage
-                    newId = (id === 0 || id === blockedId || id === waterId) ? 1 : id;
-                } else if (col === 1) {
-                    newId = blockedId; // force to chosen blocked tile id
-                } else if (col === 2) {
-                    newId = waterId; // force to chosen water tile id
-                }
-                if (newId !== id) { tileMap[y][x] = newId; changed++; }
+    // --- Icon editing helpers ---
+    hitTestEffectObject(mx, my) {
+        if (!this.mapData) return null;
+        // test from top-most
+        for (let i = this.mapData.effectObjects.length - 1; i >= 0; i--) {
+            const obj = this.mapData.effectObjects[i];
+            const w = TILE_SIZE, h = TILE_SIZE;
+            if (mx >= obj.x && mx <= obj.x + w && my >= obj.y && my <= obj.y + h) {
+                return obj;
             }
         }
-        this.calculateCollisionMap();
-        this.render();
-        this.log(`Bake va chạm hoàn tất. Tiles thay đổi: ${changed}.`);
+        return null;
     }
+
+    handleAddIconAtCenter() {
+        if (!this.mapData) return;
+        const idInput = document.getElementById('icon-id-input');
+        const iconId = Math.max(0, Math.min(999, parseInt((idInput?.value)||'0', 10) || 0));
+        const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+        const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+        const obj = { templateId: iconId, x: Math.round(cx), y: Math.round(cy), text: '', name: `Effect ID: ${iconId}` };
+        this.mapData.effectObjects.push(obj);
+        this.selectedEffectObject = obj;
+        this.render();
+        this.log(`Đã thêm icon ${iconId} tại giữa màn hình.`);
+    }
+
+    handleDeleteSelectedIcon() {
+        if (!this.mapData || !this.selectedEffectObject) return;
+        const idx = this.mapData.effectObjects.indexOf(this.selectedEffectObject);
+        if (idx >= 0) {
+            const id = this.selectedEffectObject.templateId;
+            this.mapData.effectObjects.splice(idx, 1);
+            this.selectedEffectObject = null;
+            this.render();
+            this.log(`Đã xóa icon ${id}.`);
+        }
+    }
+
 }
 
 new MapViewerApp();
