@@ -199,8 +199,8 @@
                 <div class="file-input-group">
                     <label for="anchor-select">Neo giữ (anchor)</label>
                     <select id="anchor-select">
-                        <option value="top-left">Giữ góc trái trên</option>
-                        <option value="center" selected>Giữ giữa</option>
+                        <option value="top-left" selected>Giữ góc trái trên</option>
+                        <option value="center">Giữ giữa</option>
                         <option value="bottom-right">Giữ góc phải dưới</option>
                     </select>
                 </div>
@@ -695,9 +695,11 @@ class MapViewerApp {
 
             // Overlay (icons only)
             const overlayWriter = new BinaryWriter();
-            const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
-            overlayWriter.writeShort(icons.length);
-            for (const obj of icons) {
+                    const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
+        // filter invalid template ids
+        const validIcons = icons.filter(o => Number.isFinite(o.templateId) && (o.templateId|0) >= 0);
+        overlayWriter.writeShort(validIcons.length);
+        for (const obj of validIcons) {
                 let xTile = Math.round((obj.x || 0) / TILE_SIZE);
                 let yTile = Math.round((obj.y || 0) / TILE_SIZE);
                 if (xTile < 0) xTile = 0; if (xTile >= width) xTile = width - 1;
@@ -754,7 +756,7 @@ class MapViewerApp {
         if (!this.mapData) { this.log("LỖI: Chưa có map."); return; }
         const newW = Math.max(1, parseInt(document.getElementById('new-width-input').value || '0', 10));
         const newH = Math.max(1, parseInt(document.getElementById('new-height-input').value || '0', 10));
-        const anchor = document.getElementById('anchor-select').value;
+        const anchor = 'top-left'; // force append-style expansion for client safety
         const fillTile = Math.max(0, Math.min(255, parseInt(document.getElementById('fill-tile-input').value || '0', 10)));
         const clip = document.getElementById('clip-objects-checkbox').checked;
         this.resizeMap(newW, newH, anchor, fillTile, clip);
