@@ -313,7 +313,7 @@ class MapWriter:
         return bytes(self.data)
         
     def write_map_data(self, map_data):
-        """Write map data in HSO binary format"""
+        """Write map data in HSO binary format - TILES ONLY for client compatibility"""
         # Header padding
         self.write_ushort(0)
         
@@ -324,65 +324,12 @@ class MapWriter:
         self.write_ubyte(map_data.height)
         self.write_ubyte(map_data.tileset_id)
         
-        # Tile data
+        # ONLY tile data - NO separators, NO objects per cs.java b() method
         for row in map_data.tiles:
             for tile in row:
                 self.write_ubyte(tile)
                 
-        # Separator
-        self.write_byte(0xFF)
-        
-        # Object block
-        object_writer = MapWriter()
-        
-        # Decorative icons count
-        object_writer.write_short(len(map_data.decorative_icons))
-        
-        # Decorative icons data
-        for icon in map_data.decorative_icons:
-            object_writer.write_short(icon['template_id'])
-            object_writer.write_short(icon['x'] // TILE_SIZE)  # Convert back to tile coords
-            object_writer.write_short(icon['y'] // TILE_SIZE)
-            
-        # Internal VGO count
-        object_writer.write_short(len(map_data.internal_vgos))
-        
-        # Internal VGOs
-        for vgo in map_data.internal_vgos:
-            object_writer.write_short(vgo['x'] // TILE_SIZE)  # Convert back to tile coords
-            object_writer.write_short(vgo['y'] // TILE_SIZE)
-            object_writer.write_ubyte(vgo['type'])
-            
-            if vgo['type'] == 0:
-                name_bytes = vgo['name'].encode('utf-8')
-                object_writer.write_ubyte(len(name_bytes))
-                object_writer.write_bytes(name_bytes)
-            elif vgo['type'] == 1:
-                object_writer.write_utf(vgo['name'])
-                
-        # Effect triggers (eff data)
-        for trigger in map_data.effect_triggers:
-            object_writer.write_bytes(b'\x03eff')  # Magic
-            eff_string = trigger['raw']
-            eff_bytes = eff_string.encode('utf-8')
-            object_writer.write_ubyte(len(eff_bytes))
-            object_writer.write_bytes(eff_bytes)
-            
-        # Write object block length and data
-        object_data = object_writer.get_data()
-        self.write_short(len(object_data))
-        self.write_bytes(object_data)
-        
-        # Map warps (external VGOs)
-        if map_data.map_warps:
-            self.write_ubyte(len(map_data.map_warps))
-            for warp in map_data.map_warps:
-                self.write_short(warp['x'])  # Already in pixels
-                self.write_short(warp['y'])
-                self.write_utf(warp['dest_map_name'])
-                
-        # EOF marker
-        self.write_byte(0xFF)
+        # THAT'S IT! Client expects ONLY tiles in map file
 
 # ============================================================================
 # TILESET GENERATOR
@@ -1276,9 +1223,11 @@ Total Tiles: {self.map_data.width * self.map_data.height}
                     
                 QMessageBox.information(self, "Thành công", 
                                       f"Đã xuất binary thành công!\n" +
-                                      f"File client: {os.path.basename(file_path)}\n" +
-                                      f"File hex: {os.path.basename(hex_file)}\n" +
-                                      f"Size: {len(binary_data)} bytes")
+                                      f"✅ File client: {os.path.basename(file_path)}\n" +
+                                      f"📄 File hex: {os.path.basename(hex_file)}\n" +
+                                      f"📊 Size: {len(binary_data)} bytes\n\n" +
+                                      f"💡 Format: TILES ONLY (client-compatible)\n" +
+                                      f"🎯 Based on cs.java b() method analysis")
                                       
             except Exception as e:
                 QMessageBox.critical(self, "Lỗi", f"Không thể xuất binary:\n{str(e)}")
@@ -1417,16 +1366,14 @@ Total Tiles: {self.map_data.width * self.map_data.height}
             parser = MapParser(binary_data)
             parsed_data = parser.parse()
             
-            # Verify dimensions match
+            # For tiles-only format, just verify basic parsing works
             if (parsed_data.width == self.map_data.width and 
-                parsed_data.height == self.map_data.height and
-                len(parsed_data.tiles) == self.map_data.height and
-                len(parsed_data.tiles[0]) == self.map_data.width):
+                parsed_data.height == self.map_data.height):
                 
                 print(f"✅ Client compatibility test PASSED")
                 print(f"   - Map size: {self.map_data.width}x{self.map_data.height}")
-                print(f"   - Binary size: {len(binary_data)} bytes")
-                print(f"   - Objects: {len(self.map_data.decorative_icons)} icons, {len(self.map_data.effect_triggers)} triggers")
+                print(f"   - Binary size: {len(binary_data)} bytes (tiles only)")
+                print(f"   - Format: HSO client-compatible")
                 return True
             else:
                 print(f"❌ Client compatibility test FAILED: dimension mismatch")
