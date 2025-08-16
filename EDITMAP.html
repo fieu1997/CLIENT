@@ -684,10 +684,11 @@ class MapViewerApp {
             tileBlobWriter.writeByte(height);
             tileBlobWriter.writeByte(k);
             for (let y = 0; y < height; y++) {
-                const row = this.mapData.tileMap[y] || [];
+                // Ensure row length equals width after any resize
+                const row = (this.mapData.tileMap[y] || []).slice(0, width);
+                while (row.length < width) row.push(0);
                 for (let x = 0; x < width; x++) {
-                    const tile = row[x] ?? 0;
-                    tileBlobWriter.writeByte(clampByte(tile));
+                    tileBlobWriter.writeByte(clampByte(row[x]));
                 }
             }
             const tileBlob = new Uint8Array(tileBlobWriter.getBuffer());
@@ -697,9 +698,11 @@ class MapViewerApp {
             const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
             overlayWriter.writeShort(icons.length);
             for (const obj of icons) {
-                const xTile = Math.max(0, Math.min(32767, Math.round((obj.x || 0) / TILE_SIZE)));
-                const yTile = Math.max(0, Math.min(32767, Math.round((obj.y || 0) / TILE_SIZE)));
-                overlayWriter.writeShort(obj.templateId | 0);
+                let xTile = Math.round((obj.x || 0) / TILE_SIZE);
+                let yTile = Math.round((obj.y || 0) / TILE_SIZE);
+                if (xTile < 0) xTile = 0; if (xTile >= width) xTile = width - 1;
+                if (yTile < 0) yTile = 0; if (yTile >= height) yTile = height - 1;
+                overlayWriter.writeShort((obj.templateId | 0));
                 overlayWriter.writeShort(xTile);
                 overlayWriter.writeShort(yTile);
             }
@@ -722,8 +725,12 @@ class MapViewerApp {
             out.writeShort(overlayBlob.length);
             out.writeBytes(overlayBlob);
             // Minimal tail to avoid crashes
+            // pointCount=0, s2=0, cs.u=0, cs.w=0
             out.writeByte(0);
             out.writeByte(0);
+            out.writeByte(0);
+            out.writeByte(0);
+            // booleans cn.aP, cn.aO
             out.writeByte(0);
             out.writeByte(0);
 
