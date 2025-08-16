@@ -607,27 +607,13 @@ class MapViewerApp {
             const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
 
             const out = new BinaryWriter();
-            const mapId = 0;
-            const spawnX = 0;
-            const spawnY = 0;
-            const unk = 0;
-            out.writeShort(mapId);
-            out.writeShort(spawnX);
-            out.writeShort(spawnY);
-            out.writeShort(unk);
+            out.writeShort(0);
             out.writeUTF(this.mapData.mapName || "");
             out.writeShort(tileBlob.length);
             out.writeBytes(tileBlob);
             out.writeByte(-1);
             out.writeShort(overlayBlob.length);
             out.writeBytes(overlayBlob);
-            // Minimal tail
-            out.writeByte(0); // poiCount
-            out.writeByte(0); // s2
-            out.writeByte(0); // cs.u
-            out.writeByte(0); // cs.w
-            out.writeByte(0); // cn.aP
-            out.writeByte(0); // cn.aO
 
             const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
