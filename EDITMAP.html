@@ -179,9 +179,7 @@
 
             <div class="control-group">
                 <h2>2. Lưu Bản Đồ</h2>
-                <button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu Map (.map)</button>
-                <div style="height: 8px"></div>
-                <button id="export-client-button" class="action-button" disabled>Xuất Dữ Liệu Client (CMD 12)</button>
+                <button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu (CMD 12)</button>
             </div>
 
             <div class="control-group">
@@ -361,7 +359,7 @@ class MapViewerApp {
         document.getElementById('tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
         document.getElementById('icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
         this.saveMapButton.addEventListener('click', this.handleSaveMap.bind(this));
-        document.getElementById('export-client-button')?.addEventListener('click', this.handleExportClient.bind(this));
+
         document.getElementById('apply-resize-button')?.addEventListener('click', this.applyResizeFromUI.bind(this));
         
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
@@ -498,8 +496,7 @@ class MapViewerApp {
             document.getElementById('new-height-input').value = String(this.mapData.height);
 
             this.saveMapButton.disabled = false;
-            const exportBtn = document.getElementById('export-client-button');
-            if (exportBtn) exportBtn.disabled = false;
+
             this.canvas.style.display = 'block';
             this.welcomeMessage.style.display = 'none';
             this.resetView();
@@ -571,102 +568,7 @@ class MapViewerApp {
     }
     
     async handleSaveMap() {
-        if (!this.mapData) {
-            this.log("LỖI: Không có dữ liệu map để lưu.");
-            return;
-        }
-
-        this.log(`Bắt đầu quá trình lưu map '${this.mapData.mapName}'...`);
-        try {
-            const writer = new BinaryWriter();
-            const encoder = new TextEncoder();
-
-            // Part 1: Header and Tile Data (original .map format used by this editor)
-            writer.writeShort(0);
-            writer.writeUTF(this.mapData.mapName);
-            writer.writeShort(this.mapData.mapVersion);
-            writer.writeByte(this.mapData.width);
-            writer.writeByte(this.mapData.height);
-            writer.writeByte(this.mapData.tilesetId);
-            this.mapData.tileMap.flat().forEach(tile => writer.writeByte(Math.max(0, Math.min(255, tile|0))));
-            this.log("Đã ghi header và dữ liệu tile.");
-
-            // Part 2: Separator
-            writer.writeByte(-1);
-
-            // Part 3: Object Data Block (original editor format)
-            const objectWriter = new BinaryWriter();
-            objectWriter.writeShort(this.mapData.effectObjects.length);
-            this.mapData.effectObjects.forEach(obj => {
-                objectWriter.writeShort(obj.templateId);
-                objectWriter.writeShort(Math.round(obj.x / TILE_SIZE));
-                objectWriter.writeShort(Math.round(obj.y / TILE_SIZE));
-            });
-
-            objectWriter.writeShort(this.mapData.internalVgoCount ?? 0);
-
-            const internalVgos = this.mapData.vgos.filter(vgo => vgo.mapGoId < 100);
-            internalVgos.forEach(vgo => {
-                const type = vgo.mapGoId - 1;
-                objectWriter.writeShort(Math.round(vgo.x / TILE_SIZE));
-                objectWriter.writeShort(Math.round(vgo.y / TILE_SIZE));
-                objectWriter.writeByte(type);
-                if (type === 0) {
-                    const nameBytes = encoder.encode(vgo.name);
-                    objectWriter.writeByte(nameBytes.length);
-                    objectWriter.writeBytes(nameBytes);
-                } else {
-                    objectWriter.writeUTF(vgo.name);
-                }
-            });
-
-            this.mapData.effData.forEach(eff => {
-                objectWriter.writeBytes([0x03, 0x65, 0x66, 0x66]);
-                const effStringBytes = encoder.encode(eff.raw);
-                objectWriter.writeByte(effStringBytes.length);
-                objectWriter.writeBytes(effStringBytes);
-            });
-
-            const objectBuffer = new Uint8Array(objectWriter.getBuffer());
-            writer.writeShort(objectBuffer.length);
-            writer.writeBytes(objectBuffer);
-            this.log(`Đã ghi object block (${objectBuffer.length} bytes).`);
-
-            // Part 4: External VGO data
-            const externalVgos = this.mapData.vgos.filter(vgo => vgo.mapGoId >= 100);
-            if (externalVgos.length > 0) {
-                writer.writeByte(externalVgos.length);
-                externalVgos.forEach(vgo => {
-                    writer.writeShort(vgo.x);
-                    writer.writeShort(vgo.y);
-                    writer.writeUTF(vgo.name);
-                });
-                this.log(`Đã ghi ${externalVgos.length} VGOs bên ngoài.`);
-            }
-
-            // Part 5: EOF Marker
-            writer.writeByte(-1);
-            this.log("Đã ghi EOF marker.");
-
-            const blob = new Blob([writer.getBuffer()], { type: 'application/octet-stream' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${this.mapData.tilesetId || 'output'}.map`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
-
-            this.log(`Thành công! File map '${a.download}' đã được tạo.`);
-
-        } catch (error) {
-            this.log(`LỖI NGHIÊM TRỌNG khi lưu: ${error}`);
-            console.error("Lỗi khi lưu file map:", error);
-        }
-    }
-
-    async handleExportClient() {
-        if (!this.mapData) { this.log("LỖI: Không có dữ liệu map để xuất."); return; }
+        if (!this.mapData) { this.log("LỖI: Không có dữ liệu map để lưu."); return; }
         const width = (this.mapData.width | 0);
         const height = (this.mapData.height | 0);
         const k = (this.mapData.tilesetId | 0) & 0xFF;
@@ -678,28 +580,22 @@ class MapViewerApp {
         try {
             const clampByte = (v) => Math.max(0, Math.min(255, v | 0));
 
-            // Tile blob
             const tileBlobWriter = new BinaryWriter();
             tileBlobWriter.writeByte(width);
             tileBlobWriter.writeByte(height);
             tileBlobWriter.writeByte(k);
             for (let y = 0; y < height; y++) {
-                // Ensure row length equals width after any resize
                 const row = (this.mapData.tileMap[y] || []).slice(0, width);
                 while (row.length < width) row.push(0);
-                for (let x = 0; x < width; x++) {
-                    tileBlobWriter.writeByte(clampByte(row[x]));
-                }
+                for (let x = 0; x < width; x++) tileBlobWriter.writeByte(clampByte(row[x]));
             }
             const tileBlob = new Uint8Array(tileBlobWriter.getBuffer());
 
-            // Overlay (icons only)
             const overlayWriter = new BinaryWriter();
-                    const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
-        // filter invalid template ids
-        const validIcons = icons.filter(o => Number.isFinite(o.templateId) && (o.templateId|0) >= 0);
-        overlayWriter.writeShort(validIcons.length);
-        for (const obj of validIcons) {
+            const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
+            const validIcons = icons.filter(o => Number.isFinite(o.templateId) && (o.templateId|0) >= 0);
+            overlayWriter.writeShort(validIcons.length);
+            for (const obj of validIcons) {
                 let xTile = Math.round((obj.x || 0) / TILE_SIZE);
                 let yTile = Math.round((obj.y || 0) / TILE_SIZE);
                 if (xTile < 0) xTile = 0; if (xTile >= width) xTile = width - 1;
@@ -710,7 +606,6 @@ class MapViewerApp {
             }
             const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
 
-            // Compose client message
             const out = new BinaryWriter();
             const mapId = 0;
             const spawnX = 0;
@@ -726,15 +621,13 @@ class MapViewerApp {
             out.writeByte(-1);
             out.writeShort(overlayBlob.length);
             out.writeBytes(overlayBlob);
-            // Minimal tail to avoid crashes
-            // pointCount=0, s2=0, cs.u=0, cs.w=0
-            out.writeByte(0);
-            out.writeByte(0);
-            out.writeByte(0);
-            out.writeByte(0);
-            // booleans cn.aP, cn.aO
-            out.writeByte(0);
-            out.writeByte(0);
+            // Minimal tail
+            out.writeByte(0); // poiCount
+            out.writeByte(0); // s2
+            out.writeByte(0); // cs.u
+            out.writeByte(0); // cs.w
+            out.writeByte(0); // cn.aP
+            out.writeByte(0); // cn.aO
 
             const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
             const a = document.createElement('a');
