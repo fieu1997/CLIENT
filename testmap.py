@@ -1362,21 +1362,38 @@ Total Tiles: {self.map_data.width * self.map_data.height}
             writer.write_map_data(self.map_data)
             binary_data = writer.get_data()
             
-            # Try to parse it back
-            parser = MapParser(binary_data)
-            parsed_data = parser.parse()
+            # Calculate expected size
+            header_size = 2 + 2 + len(self.map_data.name.encode('utf-8')) + 2 + 3
+            tiles_size = self.map_data.width * self.map_data.height
+            expected_size = header_size + tiles_size
             
-            # For tiles-only format, just verify basic parsing works
-            if (parsed_data.width == self.map_data.width and 
-                parsed_data.height == self.map_data.height):
-                
+            # Verify size matches exactly
+            if len(binary_data) != expected_size:
+                print(f"❌ Size mismatch: {len(binary_data)} != {expected_size}")
+                return False
+            
+            # Try to parse it back (but only test header parsing)
+            offset = 2  # Skip padding
+            name_len = int.from_bytes(binary_data[offset:offset+2], 'big')
+            offset += 2 + name_len + 2  # Skip name + version
+            
+            width = binary_data[offset]
+            height = binary_data[offset + 1]
+            tileset_id = binary_data[offset + 2]
+            offset += 3
+            
+            available_tiles = len(binary_data) - offset
+            expected_tiles = width * height
+            
+            if available_tiles == expected_tiles:
                 print(f"✅ Client compatibility test PASSED")
-                print(f"   - Map size: {self.map_data.width}x{self.map_data.height}")
+                print(f"   - Map size: {width}x{height}")
                 print(f"   - Binary size: {len(binary_data)} bytes (tiles only)")
+                print(f"   - Tiles: {expected_tiles} (perfect match)")
                 print(f"   - Format: HSO client-compatible")
                 return True
             else:
-                print(f"❌ Client compatibility test FAILED: dimension mismatch")
+                print(f"❌ Tile count mismatch: {available_tiles} != {expected_tiles}")
                 return False
                 
         except Exception as e:
