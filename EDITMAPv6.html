@@ -2112,58 +2112,22 @@ class MapViewerApp {
 	}
 
 			getIconFrameRect(img) {
+			// Dùng cho NPC: chỉ hỗ trợ sprite-sheet dọc với 2 hoặc 4 frame chuẩn.
 			const w = img?.width || TILE_SIZE;
 			const h = img?.height || TILE_SIZE;
-			const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-			const nearInt = (x, eps) => Math.abs(x - Math.round(x)) <= eps;
-			let orientation = 'none';
 			let frames = 1;
-			// Ưu tiên phát hiện sprite-sheet theo tỉ lệ gần số nguyên 2..8 và mỗi frame gần-vuông
-			const tryVertical = () => {
+			if (w > 0 && h > 0) {
 				const ratio = h / w;
 				const n = Math.round(ratio);
-				if (n >= 2 && n <= 8 && nearInt(ratio, 0.08)) {
-					const seg = h / n;
-					if (Math.abs(seg / w - 1) <= 0.15) return n;
+				if ((n === 2 || n === 4) && Math.abs(ratio - n) < 0.005 && (h % n === 0)) {
+					frames = n;
 				}
-				return 1;
-			};
-			const tryHorizontal = () => {
-				const ratio = w / h;
-				const n = Math.round(ratio);
-				if (n >= 2 && n <= 8 && nearInt(ratio, 0.08)) {
-					const seg = w / n;
-					if (Math.abs(seg / h - 1) <= 0.15) return n;
-				}
-				return 1;
-			};
-			const fv = tryVertical();
-			const fh = tryHorizontal();
-			if (fv > 1 || fh > 1) {
-				if (fv > 1 && fh > 1) {
-					// Chọn phương án cho frame gần vuông hơn
-					const errV = Math.abs((h / fv) / w - 1);
-					const errH = Math.abs((w / fh) / h - 1);
-					if (errV <= errH) { orientation = 'vertical'; frames = fv; } else { orientation = 'horizontal'; frames = fh; }
-				} else if (fv > 1) { orientation = 'vertical'; frames = fv; }
-				else { orientation = 'horizontal'; frames = fh; }
 			}
 			let sx = 0, sy = 0, sw = w, sh = h;
 			if (frames > 1) {
 				const idx = Math.floor(Date.now() / this.animationTickMs) % frames;
-				if (orientation === 'vertical') {
-					const seg = h / frames;
-					const start = Math.round(idx * seg);
-					const end = Math.round((idx + 1) * seg);
-					sy = clamp(start, 0, h - 1);
-					sh = clamp(end - start, 1, h - sy);
-				} else if (orientation === 'horizontal') {
-					const seg = w / frames;
-					const start = Math.round(idx * seg);
-					const end = Math.round((idx + 1) * seg);
-					sx = clamp(start, 0, w - 1);
-					sw = clamp(end - start, 1, w - sx);
-				}
+				sh = h / frames;
+				sy = idx * sh;
 			}
 			return { sx, sy, sw, sh };
 		}
