@@ -1065,6 +1065,9 @@ class MapViewerApp {
 	handleMouseDown(event) {
 		if (!this.mapData) return;
 		if (event.button !== 0) return;
+		// Dismiss NPC interaction dialog if open and clicked outside
+		const dialog = document.getElementById('npc-interaction-dialog');
+		if (dialog && !dialog.contains(event.target)) { this.hideNpcDialog(); }
 		const rect = this.canvas.getBoundingClientRect();
 		const sx = event.clientX - rect.left;
 		const sy = event.clientY - rect.top;
@@ -1651,6 +1654,37 @@ class MapViewerApp {
 		const iconImage = this.effectIcons.get(finalIconId);
 		if (iconImage && iconImage.complete) { const img = document.createElement('img'); img.src = iconImage.src; previewElement.appendChild(img); }
 		else { previewElement.textContent = '?'; }
+	}
+
+	showNpcDialog(npc) {
+		this.hideNpcDialog();
+		const interactionIconId = 3500 + Number(npc.iconInteract);
+		const interactionIconImg = this.effectIcons.get(interactionIconId);
+		const container = document.createElement('div');
+		container.id = 'npc-interaction-dialog';
+		container.className = 'npc-dialog-container';
+		const dialogBox = document.createElement('div');
+		dialogBox.className = 'npc-dialog-box';
+		const header = document.createElement('div'); header.className = 'npc-dialog-header'; const title = document.createElement('h3'); title.textContent = npc.name; header.appendChild(title);
+		const content = document.createElement('div'); content.className = 'npc-dialog-content'; const text = document.createElement('p'); text.textContent = npc.dialog; content.appendChild(text);
+		const actions = document.createElement('div'); actions.className = 'npc-dialog-actions';
+		if (npc.menuTitle && String(npc.menuTitle).trim() !== '') { const mainButton = document.createElement('button'); mainButton.textContent = npc.menuTitle; actions.appendChild(mainButton); }
+		const closeButton = document.createElement('button'); closeButton.textContent = 'Đóng'; closeButton.onclick = () => this.hideNpcDialog(); actions.appendChild(closeButton);
+		dialogBox.appendChild(header); dialogBox.appendChild(content); dialogBox.appendChild(actions);
+		const portraitPanel = document.createElement('div'); portraitPanel.className = 'npc-dialog-portrait';
+		if (interactionIconImg && interactionIconImg.complete) {
+			const iconToDraw = interactionIconImg; const scaleFactor = 2.5; const canvas = document.createElement('canvas'); canvas.width = iconToDraw.width * scaleFactor; canvas.height = iconToDraw.height * scaleFactor; const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(iconToDraw, 0, 0, iconToDraw.width, iconToDraw.height, 0, 0, canvas.width, canvas.height); portraitPanel.appendChild(canvas);
+		} else { const placeholder = document.createElement('div'); placeholder.textContent = `? ${interactionIconId}`; placeholder.className = 'icon-placeholder'; portraitPanel.appendChild(placeholder); }
+		container.appendChild(dialogBox); container.appendChild(portraitPanel); this.canvasContainer.appendChild(container);
+		const screenX = npc.x * this.scale + this.panX; const screenY = npc.y * this.scale + this.panY; const containerRect = this.canvasContainer.getBoundingClientRect(); const dialogRect = container.getBoundingClientRect();
+		let finalX = screenX - (dialogRect.width / 2); let finalY = screenY - dialogRect.height - 20;
+		if (finalX < 10) finalX = 10; if (finalX + dialogRect.width > containerRect.width - 10) finalX = containerRect.width - dialogRect.width - 10; if (finalY < 10) finalY = 10; if (finalY + dialogRect.height > containerRect.height - 10) finalY = containerRect.height - dialogRect.height - 10;
+		container.style.left = `${finalX}px`; container.style.top = `${finalY}px`;
+	}
+
+	hideNpcDialog() {
+		const dialog = document.getElementById('npc-interaction-dialog');
+		if (dialog) dialog.remove();
 	}
 
 	drawNpc(npc) {
