@@ -2114,33 +2114,57 @@ class MapViewerApp {
 			getIconFrameRect(img) {
 			const w = img?.width || TILE_SIZE;
 			const h = img?.height || TILE_SIZE;
+			const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+			const nearInt = (x, eps) => Math.abs(x - Math.round(x)) <= eps;
 			let orientation = 'none';
-			if (h >= w + 2) orientation = 'vertical';
-			else if (w >= h + 2) orientation = 'horizontal';
-			const chooseFrames = (total, ortho) => {
-				const candidates = [2,3,4,5,6,8];
-				const tol = Math.max(1, Math.round(total * 0.02));
-				for (const f of candidates) { if (total % f <= tol) return f; }
-				let best = 1; let bestCost = Number.POSITIVE_INFINITY;
-				for (const f of candidates) { const seg = total / f; if (seg < 8) continue; const cost = Math.abs(seg - ortho); if (cost < bestCost) { bestCost = cost; best = f; } }
-				return best;
-			};
 			let frames = 1;
-			if (orientation === 'vertical') frames = chooseFrames(h, w);
-			else if (orientation === 'horizontal') frames = chooseFrames(w, h);
-			let sx = 0, sy = 0, sw = w, sh = h;
-			const idx = frames > 1 ? Math.floor(Date.now() / this.animationTickMs) % frames : 0;
-			if (orientation === 'vertical' && frames > 1) {
-				const start = Math.round(idx * h / frames);
-				const end = Math.round((idx + 1) * h / frames);
-				sy = start; sh = Math.max(1, end - start);
-			} else if (orientation === 'horizontal' && frames > 1) {
-				const start = Math.round(idx * w / frames);
-				const end = Math.round((idx + 1) * w / frames);
-				sx = start; sw = Math.max(1, end - start);
+			// Ưu tiên phát hiện sprite-sheet theo tỉ lệ gần số nguyên 2..8 và mỗi frame gần-vuông
+			const tryVertical = () => {
+				const ratio = h / w;
+				const n = Math.round(ratio);
+				if (n >= 2 && n <= 8 && nearInt(ratio, 0.08)) {
+					const seg = h / n;
+					if (Math.abs(seg / w - 1) <= 0.15) return n;
+				}
+				return 1;
+			};
+			const tryHorizontal = () => {
+				const ratio = w / h;
+				const n = Math.round(ratio);
+				if (n >= 2 && n <= 8 && nearInt(ratio, 0.08)) {
+					const seg = w / n;
+					if (Math.abs(seg / h - 1) <= 0.15) return n;
+				}
+				return 1;
+			};
+			const fv = tryVertical();
+			const fh = tryHorizontal();
+			if (fv > 1 || fh > 1) {
+				if (fv > 1 && fh > 1) {
+					// Chọn phương án cho frame gần vuông hơn
+					const errV = Math.abs((h / fv) / w - 1);
+					const errH = Math.abs((w / fh) / h - 1);
+					if (errV <= errH) { orientation = 'vertical'; frames = fv; } else { orientation = 'horizontal'; frames = fh; }
+				} else if (fv > 1) { orientation = 'vertical'; frames = fv; }
+				else { orientation = 'horizontal'; frames = fh; }
 			}
-			if (sx + sw > w) sw = w - sx;
-			if (sy + sh > h) sh = h - sy;
+			let sx = 0, sy = 0, sw = w, sh = h;
+			if (frames > 1) {
+				const idx = Math.floor(Date.now() / this.animationTickMs) % frames;
+				if (orientation === 'vertical') {
+					const seg = h / frames;
+					const start = Math.round(idx * seg);
+					const end = Math.round((idx + 1) * seg);
+					sy = clamp(start, 0, h - 1);
+					sh = clamp(end - start, 1, h - sy);
+				} else if (orientation === 'horizontal') {
+					const seg = w / frames;
+					const start = Math.round(idx * seg);
+					const end = Math.round((idx + 1) * seg);
+					sx = clamp(start, 0, w - 1);
+					sw = clamp(end - start, 1, w - sx);
+				}
+			}
 			return { sx, sy, sw, sh };
 		}
 
