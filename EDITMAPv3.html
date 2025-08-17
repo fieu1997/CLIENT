@@ -1376,7 +1376,16 @@ class MapViewerApp {
         this.ctx.lineWidth = 1.5 / this.scale;
         this.ctx.stroke();
 
-        // Client will handle direction pointer; no arrow rendering here
+        // Auto arrow direction when editing VGO: infer by map edges
+        if (this.isVgoEditingMode && this.mapData) {
+            const dir = this.inferVgoDirection(vgo, this.mapData.width * TILE_SIZE, this.mapData.height * TILE_SIZE);
+            const angle = this.directionAngle(dir);
+            const alpha = 0.6 + 0.4 * Math.abs(Math.sin(Date.now() / 300));
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            this.drawArrow(centerX, centerY, angle);
+            this.ctx.restore();
+        }
 
         if (vgo.name) {
             this.ctx.fillStyle = '#ffffff';
@@ -1843,6 +1852,49 @@ class MapViewerApp {
     }
 
     // Removed arrow/direction helpers: client handles VGO direction pointer
+
+    inferVgoDirection(vgo) {
+        // Infer based on proximity to edges (similar to client-side logic): left/right/upper-half/lower-half
+        if (!this.mapData) return 'up';
+        const mapW = this.mapData.width * TILE_SIZE;
+        const mapH = this.mapData.height * TILE_SIZE;
+        if (vgo.x < 100) return 'left';
+        if (vgo.x > mapW - 100) return 'right';
+        if (vgo.y < mapH / 2) return 'up';
+        return 'down';
+    }
+
+    directionAngle(dir) {
+        switch (String(dir)) {
+            case 'left': return Math.PI;
+            case 'right': return 0;
+            case 'down': return Math.PI / 2;
+            case 'up':
+            default: return -Math.PI / 2;
+        }
+    }
+
+    drawArrow(cx, cy, angleRad) {
+        const len = 14 / this.scale;
+        const head = 6 / this.scale;
+        this.ctx.save();
+        this.ctx.translate(cx, cy);
+        this.ctx.rotate(angleRad);
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 2 / this.scale;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, 0);
+        this.ctx.lineTo(len, 0);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(len, 0);
+        this.ctx.lineTo(len - head, head/2);
+        this.ctx.lineTo(len - head, -head/2);
+        this.ctx.closePath();
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fill();
+        this.ctx.restore();
+    }
 
 }
 
