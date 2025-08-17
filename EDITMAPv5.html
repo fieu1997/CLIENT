@@ -1436,7 +1436,7 @@ class MapViewerApp {
 		const sy = event.clientY - rect.top;
 		const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
 		if (this.isTileEditingMode && this.isPainting && !this.isCtrlDown) { this.paintTileAt(mx, my); return; }
-		if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEff.x = Math.round(mx); this.selectedEff.y = Math.round(my); const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE)); this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty); this.renderEffParamEditor(); this.render(); return; }
+		if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEff.x = Math.round(mx); this.selectedEff.y = Math.round(my); const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE)); this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty); this.renderEffParamEditor(); this.updateEffRawFieldFromSelected(); this.render(); return; }
 		if (this.isVgoEditingMode && this.selectedVgo && this.isDraggingVgo && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedVgo.x = Math.round(mx); this.selectedVgo.y = Math.round(my); this.render(); return; }
 		if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEffectObject.x = Math.round(mx); this.selectedEffectObject.y = Math.round(my); this.render(); return; }
 		if (this.isNpcEditingMode && this.selectedNpc && this.isDraggingNpc && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedNpc.x = Math.round(mx); this.selectedNpc.y = Math.round(my); this.render(); return; }
@@ -1736,11 +1736,18 @@ class MapViewerApp {
 				const ty = parseInt(parts[3] || '0', 10) || 0;
 				eff.id = newId; eff.name = `Eff ID: ${newId}`; eff.text = `Eff: ${newId}`; eff.x = tx * TILE_SIZE; eff.y = ty * TILE_SIZE;
 				const idBox = document.getElementById('fp-eff-selected-id') || document.getElementById('eff-selected-id'); if (idBox) idBox.value = String(newId);
+				this.updateEffRawFieldFromSelected();
 				this.render();
 			});
 			wrap.appendChild(input); grid.appendChild(wrap);
 		});
 		container.appendChild(grid);
+	}
+
+	updateEffRawFieldFromSelected() {
+		const rawEl = document.getElementById('fp-eff-raw-input') || document.getElementById('eff-raw-input');
+		if (!rawEl) return;
+		rawEl.value = this.selectedEff ? (this.selectedEff.raw ?? this.buildEffRawFromObj(this.selectedEff)) : '';
 	}
 
 	handleAddIconAtCenter() {
