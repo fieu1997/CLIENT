@@ -166,6 +166,7 @@
 		#top-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: var(--surface-color); border-bottom: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center; padding: 8px 12px; }
 		#top-toolbar .mode-button { background: #3a3a3a; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
 		#top-toolbar .mode-button.active { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+		#top-toolbar .toolbar-group { display: flex; gap: 8px; }
 		.app-container { margin-top: 48px; }
 		.floating-panel { position: absolute; top: 80px; left: 420px; width: 420px; height: 360px; background: #1f1f1f; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 1200; display: flex; flex-direction: column; resize: both; overflow: hidden; }
 		.floating-header { display: flex; align-items: center; justify-content: space-between; background: #2b2b2b; padding: 6px 10px; cursor: move; border-bottom: 1px solid var(--border-color); }
@@ -182,11 +183,22 @@
 </head>
 <body>
 	<div id="top-toolbar">
-		<button class="mode-button" data-mode="tile">Sửa Tile</button>
-		<button class="mode-button" data-mode="icon">Icon</button>
-		<button class="mode-button" data-mode="eff">Eff</button>
-		<button class="mode-button" data-mode="vgo">VGO</button>
-		<button class="mode-button" data-mode="npc">NPC</button>
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="file">Tệp</button>
+			<button class="mode-button" data-mode="resize">Kích thước</button>
+			<button class="mode-button" data-mode="collision">Va chạm</button>
+			<button class="mode-button" data-mode="log">Log</button>
+		</div>
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="tile">Sửa Tile</button>
+			<button class="mode-button" data-mode="icon">Icon</button>
+			<button class="mode-button" data-mode="eff">Eff</button>
+			<button class="mode-button" data-mode="vgo">VGO</button>
+			<button class="mode-button" data-mode="npc">NPC</button>
+		</div>
+		<div style="margin-left:auto; display:flex; gap:8px;">
+			<button id="top-undo-btn" class="mode-button" disabled>↶ Hoàn tác</button>
+		</div>
 	</div>
 	<div class="app-container">
 		<div class="sidebar">
@@ -195,7 +207,7 @@
 				<p class="description">Tải file map và tileset tương ứng để xem bản đồ một cách trực quan.</p>
 			</header>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>1. Tải File</h2>
 				<div class="file-input-group">
 					<label id="map-label" for="map-input">File Bản Đồ (.map)</label>
@@ -211,17 +223,17 @@
 				</div>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>2. Lưu Bản Đồ</h2>
 				<button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu (CMD 12)</button>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>Hoàn tác</h2>
 				<button id="undo-button" class="action-button" disabled>↶ Hoàn tác</button>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>3. Chỉnh Kích Thước</h2>
 				<div class="grid-2">
 					<div>
@@ -255,7 +267,7 @@
 				<button id="apply-resize-button" class="action-button" style="margin-top: 0.75rem;">Áp dụng thay đổi</button>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>4. Va chạm</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="show-collision" checked>
@@ -377,7 +389,7 @@
 				<div class="small-muted" style="margin-top: 0.5rem;">Icon minimap: dùng ảnh ID 3000 + iconMiniMap. Icon tương tác: 3500 + iconInteract.</div>
 			</div>
 
-			<div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
+			<div class="control-group" style="flex-grow: 1; display: none; flex-direction: column;">
 				<h2>Nhật Ký (Log)</h2>
 				<div id="log-entries-container" class="log-entries">
 					<div id="initial-log-entry" class="log-entry"><span class="log-timestamp"></span>Chào mừng! Hãy tải file map để bắt đầu.</div>
@@ -561,6 +573,7 @@ class MapViewerApp {
 	// Undo state
 	undoStack = [];
 	undoButton = null;
+	topUndoButton = null;
 	dragStartedForUndo = false;
 	// Floating UI state
 	floatingPanel = null;
@@ -583,6 +596,8 @@ class MapViewerApp {
 
 		this.initEventListeners();
 		this.initTopToolbar();
+		this.topUndoButton = document.getElementById('top-undo-btn');
+		if (this.topUndoButton) { this.topUndoButton.addEventListener('click', this.handleUndo.bind(this)); this.topUndoButton.disabled = true; }
 		this.log("Map viewer đã khởi tạo. Sẵn sàng nhận file.");
 	}
 
@@ -595,6 +610,8 @@ class MapViewerApp {
 		newEntry.className = 'log-entry';
 		newEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message.replace(/\n/g, '<br>')}`;
 		this.logEntriesContainer.prepend(newEntry);
+		const fpLog = document.getElementById('fp-log-entries');
+		if (fpLog) { fpLog.prepend(newEntry.cloneNode(true)); }
 	}
 
 	initEventListeners() {
@@ -647,7 +664,10 @@ class MapViewerApp {
 		buttons.forEach(btn => {
 			btn.addEventListener('click', () => {
 				const mode = btn.getAttribute('data-mode');
-				this.openMode(mode);
+				if (!mode) return;
+				if (mode === 'log' || mode === 'file' || mode === 'resize' || mode === 'collision' || mode === 'tile' || mode === 'icon' || mode === 'eff' || mode === 'vgo' || mode === 'npc') {
+					this.openMode(mode);
+				}
 			});
 		});
 	}
@@ -665,7 +685,12 @@ class MapViewerApp {
 	openMode(mode) {
 		if (!mode) return;
 		this.currentMode = mode;
-		this.setExclusiveEditMode(mode);
+		// Only toggle exclusive editing for canvas edit modes
+		if (['tile','icon','eff','vgo','npc'].includes(mode)) {
+			this.setExclusiveEditMode(mode);
+		} else {
+			this.setExclusiveEditMode('none');
+		}
 		this.ensureFloatingPanel();
 		this.setFloatingContent(mode);
 		this.updateModeButtonsState(mode);
@@ -703,6 +728,101 @@ class MapViewerApp {
 		if (!this.floatingContent) return;
 		const title = document.getElementById('floating-title');
 		switch (mode) {
+			case 'file':
+				if (title) title.textContent = 'Tệp & Lưu';
+				this.floatingContent.innerHTML = `
+					<div class="file-input-group">
+						<label for="fp-map-input">File Bản Đồ (.map)</label>
+						<input type="file" id="fp-map-input" accept=".map,.*">
+					</div>
+					<div class="file-input-group">
+						<label for="fp-tileset-input">Ảnh Tileset (.png)</label>
+						<input type="file" id="fp-tileset-input" accept=".png">
+					</div>
+					<div class="file-input-group">
+						<label for="fp-icon-input">Ảnh Icons (.png)</label>
+						<input type="file" id="fp-icon-input" accept=".png" multiple webkitdirectory directory>
+					</div>
+					<div class="inline" style="gap: 8px;">
+						<button id="fp-save-map-button" class="action-button" ${this.mapData ? '' : 'disabled'}>Lưu Dữ Liệu (CMD 12)</button>
+					</div>
+				`;
+				document.getElementById('fp-map-input')?.addEventListener('change', this.handleMapFile.bind(this));
+				document.getElementById('fp-tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
+				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
+				break;
+			case 'resize':
+				if (title) title.textContent = 'Chỉnh Kích Thước';
+				this.floatingContent.innerHTML = `
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-new-width-input">Chiều rộng mới (tiles)</label>
+							<input id="fp-new-width-input" type="number" min="1" step="1" value="${this.mapData ? this.mapData.width : ''}">
+						</div>
+						<div>
+							<label for="fp-new-height-input">Chiều cao mới (tiles)</label>
+							<input id="fp-new-height-input" type="number" min="1" step="1" value="${this.mapData ? this.mapData.height : ''}">
+						</div>
+					</div>
+					<div class="file-input-group" style="margin-top:6px;">
+						<label for="fp-anchor-select">Neo giữ (anchor)</label>
+						<select id="fp-anchor-select">
+							<option value="top-left" selected>Giữ góc trái trên</option>
+							<option value="center">Giữ giữa</option>
+							<option value="bottom-right">Giữ góc phải dưới</option>
+						</select>
+					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-fill-tile-input">Tile mặc định khi mở rộng</label>
+							<input id="fp-fill-tile-input" type="number" min="0" max="255" step="1" value="0">
+						</div>
+						<div class="inline" style="margin-top: 1.8rem;">
+							<input id="fp-clip-objects-checkbox" type="checkbox" checked>
+							<label for="fp-clip-objects-checkbox">Xóa đối tượng nằm ngoài</label>
+						</div>
+					</div>
+					<button id="fp-apply-resize-button" class="action-button" style="margin-top: 8px;">Áp dụng thay đổi</button>
+				`;
+				document.getElementById('fp-apply-resize-button')?.addEventListener('click', this.applyResizeFromUI.bind(this));
+				break;
+			case 'collision':
+				if (title) title.textContent = 'Va chạm';
+				this.floatingContent.innerHTML = `
+					<div class="inline" style="margin-bottom: 8px;">
+						<input type="checkbox" id="fp-show-collision" ${this.showCollision ? 'checked' : ''}>
+						<label for="fp-show-collision">Hiển thị lớp va chạm 0/1/2</label>
+					</div>
+					<div class="file-input-group">
+						<label for="fp-collision-mode">Chế độ hiển thị</label>
+						<select id="fp-collision-mode">
+							<option value="number" ${this.collisionMode==='number'?'selected':''}>Hiển thị số</option>
+							<option value="color" ${this.collisionMode==='color'?'selected':''}>Tô màu</option>
+						</select>
+					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-f-threshold">Ngưỡng F (chặn)</label>
+							<input id="fp-f-threshold" type="number" min="0" max="255" step="1" value="${this.fThreshold}">
+						</div>
+						<div>
+							<label for="fp-g-threshold">Ngưỡng G (nước)</label>
+							<input id="fp-g-threshold" type="number" min="0" max="255" step="1" value="${this.gThreshold}">
+						</div>
+					</div>
+				`;
+				document.getElementById('fp-show-collision')?.addEventListener('change', (e)=>{ this.showCollision = e.target.checked; this.render(); });
+				document.getElementById('fp-collision-mode')?.addEventListener('change', (e)=>{ this.collisionMode = e.target.value; this.render(); });
+				const onParamFP = ()=>{ const ft = document.getElementById('fp-f-threshold'); const gt = document.getElementById('fp-g-threshold'); this.fThreshold = parseInt(ft.value||'32',10)||32; this.gThreshold = parseInt(gt.value||'26',10)||26; this.calculateCollisionMap(); this.render(); };
+				document.getElementById('fp-f-threshold')?.addEventListener('input', onParamFP);
+				document.getElementById('fp-g-threshold')?.addEventListener('input', onParamFP);
+				break;
+			case 'log':
+				if (title) title.textContent = 'Nhật Ký';
+				this.floatingContent.innerHTML = `<div id="fp-log-entries" class="log-entries"></div>`;
+				const fpLog = document.getElementById('fp-log-entries'); if (fpLog && this.logEntriesContainer) { fpLog.innerHTML = this.logEntriesContainer.innerHTML; }
+				break;
 			case 'tile':
 				if (title) title.textContent = 'Sửa Tile';
 				this.floatingContent.innerHTML = `
@@ -1018,6 +1138,7 @@ class MapViewerApp {
 			document.getElementById('new-width-input').value = String(this.mapData.width);
 			document.getElementById('new-height-input').value = String(this.mapData.height);
 			this.saveMapButton.disabled = false;
+			const fpSaveBtn = document.getElementById('fp-save-map-button'); if (fpSaveBtn) fpSaveBtn.disabled = false;
 			this.canvas.style.display = 'block';
 			this.welcomeMessage.style.display = 'none';
 			this.calculateCollisionMap();
@@ -1155,11 +1276,16 @@ class MapViewerApp {
 
 	applyResizeFromUI() {
 		if (!this.mapData) { this.log("LỖI: Chưa có map."); return; }
-		const newW = Math.max(1, parseInt(document.getElementById('new-width-input').value || '0', 10));
-		const newH = Math.max(1, parseInt(document.getElementById('new-height-input').value || '0', 10));
-		const anchor = 'top-left';
-		const fillTile = Math.max(0, Math.min(255, parseInt(document.getElementById('fill-tile-input').value || '0', 10)));
-		const clip = document.getElementById('clip-objects-checkbox').checked;
+		const wEl = document.getElementById('fp-new-width-input') || document.getElementById('new-width-input');
+		const hEl = document.getElementById('fp-new-height-input') || document.getElementById('new-height-input');
+		const aEl = document.getElementById('fp-anchor-select') || document.getElementById('anchor-select');
+		const fEl = document.getElementById('fp-fill-tile-input') || document.getElementById('fill-tile-input');
+		const cEl = document.getElementById('fp-clip-objects-checkbox') || document.getElementById('clip-objects-checkbox');
+		const newW = Math.max(1, parseInt(wEl?.value || '0', 10));
+		const newH = Math.max(1, parseInt(hEl?.value || '0', 10));
+		const anchor = 'top-left'; // force top-left for client compatibility
+		const fillTile = Math.max(0, Math.min(255, parseInt(fEl?.value || '0', 10)));
+		const clip = !!(cEl && cEl.checked);
 		this.resizeMap(newW, newH, anchor, fillTile, clip);
 	}
 
@@ -1723,6 +1849,7 @@ class MapViewerApp {
 		const snap = { tileMap: this.mapData.tileMap.map(row => row.slice()), effectObjects: this.mapData.effectObjects.map(o => ({...o})), vgos: this.mapData.vgos.map(v => ({...v})), effData: this.mapData.effData.map(e => ({...e})), npcs: this.mapData.npcs.map(n => ({...n})), width: this.mapData.width, height: this.mapData.height };
 		this.undoStack.push(snap);
 		if (this.undoButton) this.undoButton.disabled = false;
+		if (this.topUndoButton) this.topUndoButton.disabled = false;
 		if (this.undoStack.length > 100) this.undoStack.shift();
 	}
 
@@ -1737,6 +1864,7 @@ class MapViewerApp {
 		this.mapData.width = snap.width;
 		this.mapData.height = snap.height;
 		if (this.undoButton && this.undoStack.length === 0) this.undoButton.disabled = true;
+		if (this.topUndoButton && this.undoStack.length === 0) this.topUndoButton.disabled = true;
 		this.selectedEffectObject = null;
 		this.calculateCollisionMap();
 		this.resetView();
