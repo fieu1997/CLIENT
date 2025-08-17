@@ -2121,8 +2121,9 @@ class MapViewerApp {
 				let frames = 1;
 				const r = ratio;
 				const isSmall = w <= 24;
-				if (h % 4 === 0 && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
-				else if (h % 2 === 0 && r >= 1.45) frames = 2;
+				const near = (x, y, tol) => Math.abs(x - y) <= tol;
+				if ((h % 4 === 0 || near(r, 4, 0.05)) && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
+				else if ((h % 2 === 0 || near(r, 2, 0.05)) && r >= 1.45) frames = 2;
 				else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
 				else if (r >= 1.45) frames = 2;
 				else frames = 1;
