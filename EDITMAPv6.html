@@ -2117,9 +2117,8 @@ class MapViewerApp {
 				const w = img?.width || TILE_SIZE;
 				const h = img?.height || TILE_SIZE;
 				const ratio = h / Math.max(1, w);
-				const near = (x, y, tol) => Math.abs(x - y) <= tol;
-				let frames = near(ratio, 4, 0.5) ? 4 : (near(ratio, 2, 0.35) ? 2 : 1);
-				if (frames === 1) return [{ sy: 0, sh: h }];
+				let frames = (ratio >= 3.1) ? 4 : 1;
+				// không return sớm; sẽ thử dò seam giữa ảnh để xác nhận 2-frame, nếu không được thì giữ 1-frame
 				const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
 				const data = ctx.getImageData(0, 0, w, h).data;
 				const solidRow = new Float32Array(h);
@@ -2144,17 +2143,24 @@ class MapViewerApp {
 					return seam;
 				};
 				const slices = [];
-				if (frames === 2) {
-					const margin = Math.round(h * 0.12);
-					const s = findSeamBetween(margin, h - margin);
-					slices.push({ sy: 0, sh: Math.max(1, s) });
-					slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
-				} else {
-					// 4-frame: quay về cắt đều để đảm bảo ổn định như trước (không dò seam)
+				if (frames === 4) {
+					// 4-frame ổn định: chia đều theo chiều cao
 					const per = Math.floor(h / 4);
 					const rem = h - per * 4;
 					let y0 = 0;
 					for (let i = 0; i < 4; i++) { const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; }
+				} else {
+					// Thử phát hiện 2-frame bằng seam ở giữa; nếu seam yếu, coi như 1-frame
+					const margin = Math.round(h * 0.12);
+					const s = findSeamBetween(margin, h - margin);
+					const midBand = Math.max(1, Math.round(h * 0.05));
+					let seamStrength = 1e9; for (let y = Math.max(1, s - midBand); y <= Math.min(h - 2, s + midBand); y++) seamStrength = Math.min(seamStrength, smoothed[y]);
+					if (seamStrength <= 0.08) {
+						slices.push({ sy: 0, sh: Math.max(1, s) });
+						slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
+					} else {
+						slices.push({ sy: 0, sh: h });
+					}
 				}
 				const minSh = Math.max(1, Math.floor(h / (frames * 4)));
 				if (slices.length !== frames || slices.some(s => s.sh < minSh)) { slices.length = 0; const per = Math.floor(h / frames); const rem = h - per * frames; let y0 = 0; for (let i = 0; i < frames; i++) { const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; } }
