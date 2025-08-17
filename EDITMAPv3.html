@@ -495,12 +495,12 @@ class MapViewerApp {
         // Tile edit controls
         const tem = document.getElementById('tile-edit-mode');
         const stid = document.getElementById('selected-tile-id');
-        if (tem) tem.addEventListener('change', (e) => { this.isTileEditingMode = e.target.checked; this.isPainting = false; this.canvas.style.cursor = this.isTileEditingMode ? 'crosshair' : 'grab'; });
+        if (tem) tem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('tile'); else this.setExclusiveEditMode('none'); });
                 // Icon edit controls
         const iem = document.getElementById('icon-edit-mode');
         const addIconBtn = document.getElementById('add-icon-button');
         const delIconBtn = document.getElementById('delete-icon-button');
-        if (iem) iem.addEventListener('change', (e) => { this.isIconEditingMode = e.target.checked; this.canvas.style.cursor = this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab'); });
+        if (iem) iem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('icon'); else this.setExclusiveEditMode('none'); });
         if (addIconBtn) addIconBtn.addEventListener('click', this.handleAddIconAtCenter.bind(this));
         if (delIconBtn) delIconBtn.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
 
@@ -510,7 +510,7 @@ class MapViewerApp {
         const delEffBtn = document.getElementById('delete-eff-button-eff');
         const updEffIdBtn = document.getElementById('update-eff-id-button');
         const updEffRawBtn = document.getElementById('update-eff-raw-button');
-        if (eem) eem.addEventListener('change', (e) => { this.isEffEditingMode = e.target.checked; this.canvas.style.cursor = this.isEffEditingMode ? 'pointer' : (this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab')); });
+        if (eem) eem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('eff'); else this.setExclusiveEditMode('none'); });
         if (addEffBtn) addEffBtn.addEventListener('click', this.handleAddEffAtCenter.bind(this));
         if (delEffBtn) delEffBtn.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
         if (updEffIdBtn) updEffIdBtn.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
@@ -530,6 +530,34 @@ class MapViewerApp {
         // Ctrl tracking
         window.addEventListener('keydown', (e) => { if (e.key === 'Control') this.isCtrlDown = true; });
         window.addEventListener('keyup', (e) => { if (e.key === 'Control') this.isCtrlDown = false; });
+    }
+
+    setExclusiveEditMode(mode) {
+        // Normalize mode
+        const m = (mode || 'none');
+        // Update flags
+        this.isTileEditingMode = (m === 'tile');
+        this.isIconEditingMode = (m === 'icon');
+        this.isEffEditingMode = (m === 'eff');
+        // Update checkboxes
+        const tem = document.getElementById('tile-edit-mode');
+        const iem = document.getElementById('icon-edit-mode');
+        const eem = document.getElementById('eff-edit-mode');
+        if (tem) tem.checked = this.isTileEditingMode;
+        if (iem) iem.checked = this.isIconEditingMode;
+        if (eem) eem.checked = this.isEffEditingMode;
+        // Reset transient states
+        this.isPainting = false;
+        this.isDraggingIcon = false;
+        this.isDraggingEff = false;
+        // Clear selections for non-active modes
+        if (!this.isIconEditingMode) this.selectedEffectObject = null;
+        if (!this.isEffEditingMode) this.selectedEff = null;
+        // Update cursor
+        if (this.isTileEditingMode) this.canvas.style.cursor = 'crosshair';
+        else if (this.isIconEditingMode || this.isEffEditingMode) this.canvas.style.cursor = 'pointer';
+        else this.canvas.style.cursor = 'grab';
+        this.render();
     }
 
     async handleMapFile(event) {
