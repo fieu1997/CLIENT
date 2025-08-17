@@ -537,6 +537,8 @@ class MapViewerApp {
 	effectIcons = new Map();
 	originalMapFileName = '';
 	showOverlays = true;
+	animationTickMs = 160;
+	animationTimer = null;
 
 	scale = 1.0;
 	panX = 0;
@@ -609,6 +611,7 @@ class MapViewerApp {
 		this.topUndoButton = document.getElementById('top-undo-btn');
 		if (this.topUndoButton) { this.topUndoButton.addEventListener('click', this.handleUndo.bind(this)); this.topUndoButton.disabled = true; }
 		this.log("Map viewer đã khởi tạo. Sẵn sàng nhận file.");
+		this.startAnimationLoop();
 	}
 
 	log(message) {
@@ -1576,27 +1579,29 @@ class MapViewerApp {
 		if (eff.text) { this.ctx.fillStyle = '#ffffff'; this.ctx.font = `bold ${14 / this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle'; this.ctx.strokeStyle = 'black'; this.ctx.lineWidth = 3 / this.scale; const textX = eff.x + TILE_SIZE / 2; const textY = eff.y + TILE_SIZE / 2; this.ctx.strokeText(eff.text, textX, textY); this.ctx.fillText(eff.text, textX, textY); }
 	}
 	
-	drawEffect(effect) {
-		const icon = this.effectIcons.get(effect.templateId);
-		if (icon && icon.complete) {
-			const drawX = effect.x + (TILE_SIZE - icon.width) / 2;
-			const drawY = effect.y + (TILE_SIZE - icon.height) / 2;
-			this.ctx.drawImage(icon, drawX, drawY, icon.width, icon.height);
-		} else {
-			this.ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
-			this.ctx.strokeStyle = '#cccc00';
-			this.ctx.lineWidth = 1 / this.scale;
-			this.ctx.fillRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
-			this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+			drawEffect(effect) {
+			const icon = this.effectIcons.get(effect.templateId);
+			if (icon && icon.complete) {
+				const r = this.getIconFrameRect(icon);
+				const drawX = effect.x + (TILE_SIZE - r.sw) / 2;
+				const drawY = effect.y + (TILE_SIZE - r.sh) / 2;
+				this.ctx.drawImage(icon, r.sx, r.sy, r.sw, r.sh, drawX, drawY, r.sw, r.sh);
+			} else {
+				this.ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+				this.ctx.strokeStyle = '#cccc00';
+				this.ctx.lineWidth = 1 / this.scale;
+				this.ctx.fillRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+				this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+			}
+			if (this.isIconEditingMode && this.selectedEffectObject === effect) {
+				const rSel = icon && icon.complete ? this.getIconFrameRect(icon) : { sx:0, sy:0, sw:TILE_SIZE, sh:TILE_SIZE };
+				const w = rSel.sw;
+				const h = rSel.sh;
+				const x = (icon && icon.complete) ? (effect.x + (TILE_SIZE - rSel.sw) / 2) : effect.x;
+				const y = (icon && icon.complete) ? (effect.y + (TILE_SIZE - rSel.sh) / 2) : effect.y;
+				this.highlightSelection(x, y, w, h);
+			}
 		}
-		if (this.isIconEditingMode && this.selectedEffectObject === effect) {
-			const w = (icon && icon.complete) ? icon.width : TILE_SIZE;
-			const h = (icon && icon.complete) ? icon.height : TILE_SIZE;
-			const x = (icon && icon.complete) ? (effect.x + (TILE_SIZE - icon.width) / 2) : effect.x;
-			const y = (icon && icon.complete) ? (effect.y + (TILE_SIZE - icon.height) / 2) : effect.y;
-			this.highlightSelection(x, y, w, h);
-		}
-	}
 
 	// Tile palette & editing
 	populateTilePalette() {
@@ -1672,7 +1677,7 @@ class MapViewerApp {
 			const npc = this.mapData.npcs[i];
 			const icon = this.effectIcons.get(3000 + (npc.iconMiniMap | 0));
 			let w = TILE_SIZE, h = TILE_SIZE;
-			if (icon && icon.complete) { w = icon.width; h = icon.height; }
+			if (icon && icon.complete) { const r = this.getIconFrameRect(icon); w = r.sw; h = r.sh; }
 			if (mx >= npc.x && mx <= npc.x + w && my >= npc.y && my <= npc.y + h) return npc;
 		}
 		return null;
@@ -2010,7 +2015,14 @@ class MapViewerApp {
 		if (isNaN(value)) { previewElement.textContent = '?'; return; }
 		const finalIconId = idBase + value;
 		const iconImage = this.effectIcons.get(finalIconId);
-		if (iconImage && iconImage.complete) { const img = document.createElement('img'); img.src = iconImage.src; previewElement.appendChild(img); }
+		if (iconImage && iconImage.complete) {
+			const r = this.getIconFrameRect(iconImage);
+			const c = document.createElement('canvas');
+			c.width = r.sw; c.height = r.sh;
+			const cctx = c.getContext('2d'); cctx.imageSmoothingEnabled = false;
+			cctx.drawImage(iconImage, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
+			previewElement.appendChild(c);
+		}
 		else { previewElement.textContent = '?'; }
 	}
 
@@ -2031,7 +2043,13 @@ class MapViewerApp {
 		dialogBox.appendChild(header); dialogBox.appendChild(content); dialogBox.appendChild(actions);
 		const portraitPanel = document.createElement('div'); portraitPanel.className = 'npc-dialog-portrait';
 		if (interactionIconImg && interactionIconImg.complete) {
-			const iconToDraw = interactionIconImg; const scaleFactor = 2.5; const canvas = document.createElement('canvas'); canvas.width = iconToDraw.width * scaleFactor; canvas.height = iconToDraw.height * scaleFactor; const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(iconToDraw, 0, 0, iconToDraw.width, iconToDraw.height, 0, 0, canvas.width, canvas.height); portraitPanel.appendChild(canvas);
+			const r = this.getIconFrameRect(interactionIconImg);
+			const scaleFactor = 2.5;
+			const canvas = document.createElement('canvas');
+			canvas.width = r.sw * scaleFactor; canvas.height = r.sh * scaleFactor;
+			const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+			ctx.drawImage(interactionIconImg, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
+			portraitPanel.appendChild(canvas);
 		} else { const placeholder = document.createElement('div'); placeholder.textContent = `? ${interactionIconId}`; placeholder.className = 'icon-placeholder'; portraitPanel.appendChild(placeholder); }
 		container.appendChild(dialogBox); container.appendChild(portraitPanel); this.canvasContainer.appendChild(container);
 		const screenX = npc.x * this.scale + this.panX; const screenY = npc.y * this.scale + this.panY; const containerRect = this.canvasContainer.getBoundingClientRect(); const dialogRect = container.getBoundingClientRect();
@@ -2049,10 +2067,20 @@ class MapViewerApp {
 		const finalIconId = 3000 + (npc.iconMiniMap | 0);
 		const icon = this.effectIcons.get(finalIconId);
 		if (icon && icon.complete) {
-			const w = icon.width; const h = icon.height;
-			this.ctx.drawImage(icon, npc.x, npc.y, w, h);
-			if (npc.name) { this.ctx.fillStyle = '#ffffff'; this.ctx.font = `bold ${12 / this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.strokeStyle = 'black'; this.ctx.lineWidth = 2 / this.scale; const textX = npc.x + w / 2; const textY = npc.y - 5 / this.scale; this.ctx.strokeText(npc.name, textX, textY); this.ctx.fillText(npc.name, textX, textY); }
-			if (this.isNpcEditingMode && npc === this.selectedNpc) { this.ctx.strokeStyle = '#ffff00'; this.ctx.lineWidth = 2 / this.scale; this.ctx.strokeRect(npc.x, npc.y, w, h); }
+			const r = this.getIconFrameRect(icon);
+			this.ctx.drawImage(icon, r.sx, r.sy, r.sw, r.sh, npc.x, npc.y, r.sw, r.sh);
+			if (npc.name) {
+				this.ctx.fillStyle = '#ffffff';
+				this.ctx.font = `bold ${12 / this.scale}px sans-serif`;
+				this.ctx.textAlign = 'center';
+				this.ctx.strokeStyle = 'black';
+				this.ctx.lineWidth = 2 / this.scale;
+				const textX = npc.x + r.sw / 2;
+				const textY = npc.y - 5 / this.scale;
+				this.ctx.strokeText(npc.name, textX, textY);
+				this.ctx.fillText(npc.name, textX, textY);
+			}
+			if (this.isNpcEditingMode && npc === this.selectedNpc) { this.ctx.strokeStyle = '#ffff00'; this.ctx.lineWidth = 2 / this.scale; this.ctx.strokeRect(npc.x, npc.y, r.sw, r.sh); }
 		} else {
 			this.ctx.fillStyle = 'rgba(148, 0, 211, 0.5)'; this.ctx.strokeStyle = '#9400D3'; this.ctx.lineWidth = 1 / this.scale; this.ctx.fillRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE); this.ctx.strokeRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE);
 		}
@@ -2083,6 +2111,34 @@ class MapViewerApp {
 			const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `npc_data_${this.mapData.tilesetId}.dat`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
 			this.log(`Hoàn tất! Tệp NPC '${a.download}' đã được tạo.`);
 		} catch (error) { this.log(`LỖI nghiêm trọng trong quá trình lưu NPC: ${error}`); console.error("Failed to save NPC file:", error); }
+	}
+
+	getIconFrameRect(img) {
+		const w = img?.width || TILE_SIZE;
+		const h = img?.height || TILE_SIZE;
+		let orientation = 'none';
+		if (h > w * 1.25) orientation = 'vertical';
+		else if (w > h * 1.25) orientation = 'horizontal';
+		let frames = 1;
+		if (orientation !== 'none') {
+			const ratio = orientation === 'vertical' ? h / w : w / h;
+			const candidates = [1,2,3,4,5,6,7,8];
+			frames = candidates.reduce((best, n) => (Math.abs(ratio - n) < Math.abs(ratio - best) ? n : best), 1);
+			if (frames < 1) frames = 1;
+		}
+		let sw = w, sh = h;
+		if (orientation === 'vertical') sh = Math.floor(h / frames);
+		else if (orientation === 'horizontal') sw = Math.floor(w / frames);
+		const index = frames > 1 ? Math.floor(Date.now() / this.animationTickMs) % frames : 0;
+		let sx = 0, sy = 0;
+		if (orientation === 'vertical') sy = index * sh;
+		else if (orientation === 'horizontal') sx = index * sw;
+		return { sx, sy, sw, sh };
+	}
+
+	startAnimationLoop() {
+		if (this.animationTimer) clearInterval(this.animationTimer);
+		this.animationTimer = setInterval(() => { if (this.mapData) this.render(); }, this.animationTickMs);
 	}
 }
 
