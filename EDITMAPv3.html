@@ -310,6 +310,27 @@
                 <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa eff.</div>
             </div>
 
+            <div class="control-group">
+                <h2>8. Sửa Cổng VGO</h2>
+                <div class="inline" style="margin-bottom: 0.5rem;">
+                    <input type="checkbox" id="vgo-edit-mode">
+                    <label for="vgo-edit-mode">Bật chế độ sửa cổng VGO (kéo thả / xóa)</label>
+                </div>
+                <div class="file-input-group">
+                    <label for="vgo-name-input">Tên cổng</label>
+                    <input id="vgo-name-input" type="text" placeholder="Tên cổng...">
+                </div>
+                <div class="file-input-group">
+                    <label for="vgo-type-input">Loại (type)</label>
+                    <input id="vgo-type-input" type="number" min="0" max="99" step="1" value="0">
+                </div>
+                <div class="inline" style="gap: 0.5rem;">
+                    <button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
+                    <button id="delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
+                </div>
+                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO.</div>
+            </div>
+
             <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
                 <h2>Nhật Ký (Log)</h2>
                 <div id="log-entries-container" class="log-entries">
@@ -443,6 +464,10 @@ class MapViewerApp {
     isEffEditingMode = false;
     selectedEff = null;
     isDraggingEff = false;
+    // VGO edit state
+    isVgoEditingMode = false;
+    selectedVgo = null;
+    isDraggingVgo = false;
     // Undo state
     undoStack = [];
     undoButton = null;
@@ -516,6 +541,14 @@ class MapViewerApp {
         if (updEffIdBtn) updEffIdBtn.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
         if (updEffRawBtn) updEffRawBtn.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
 
+        // VGO edit controls
+        const vem = document.getElementById('vgo-edit-mode');
+        const addVgoBtn = document.getElementById('add-vgo-button');
+        const delVgoBtn = document.getElementById('delete-vgo-button');
+        if (vem) vem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('vgo'); else this.setExclusiveEditMode('none'); });
+        if (addVgoBtn) addVgoBtn.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
+        if (delVgoBtn) delVgoBtn.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
+
         if (this.undoButton) this.undoButton.addEventListener('click', this.handleUndo.bind(this));
         
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
@@ -539,23 +572,28 @@ class MapViewerApp {
         this.isTileEditingMode = (m === 'tile');
         this.isIconEditingMode = (m === 'icon');
         this.isEffEditingMode = (m === 'eff');
+        this.isVgoEditingMode = (m === 'vgo');
         // Update checkboxes
         const tem = document.getElementById('tile-edit-mode');
         const iem = document.getElementById('icon-edit-mode');
         const eem = document.getElementById('eff-edit-mode');
+        const vem = document.getElementById('vgo-edit-mode');
         if (tem) tem.checked = this.isTileEditingMode;
         if (iem) iem.checked = this.isIconEditingMode;
         if (eem) eem.checked = this.isEffEditingMode;
+        if (vem) vem.checked = this.isVgoEditingMode;
         // Reset transient states
         this.isPainting = false;
         this.isDraggingIcon = false;
         this.isDraggingEff = false;
+        this.isDraggingVgo = false;
         // Clear selections for non-active modes
         if (!this.isIconEditingMode) this.selectedEffectObject = null;
         if (!this.isEffEditingMode) this.selectedEff = null;
+        if (!this.isVgoEditingMode) this.selectedVgo = null;
         // Update cursor
         if (this.isTileEditingMode) this.canvas.style.cursor = 'crosshair';
-        else if (this.isIconEditingMode || this.isEffEditingMode) this.canvas.style.cursor = 'pointer';
+        else if (this.isIconEditingMode || this.isEffEditingMode || this.isVgoEditingMode) this.canvas.style.cursor = 'pointer';
         else this.canvas.style.cursor = 'grab';
         this.render();
     }
@@ -1084,6 +1122,25 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
+        // VGO edit: select vgo under cursor (unless panning with Ctrl)
+        if (this.isVgoEditingMode && !this.isCtrlDown) {
+            const vgoHit = this.hitTestVgo(mx, my);
+            if (vgoHit) {
+                this.selectedVgo = vgoHit;
+                this.isDraggingVgo = true;
+                // Prefill UI editors
+                const nameEl = document.getElementById('vgo-name-input');
+                if (nameEl) nameEl.value = String(vgoHit.name || '');
+                const typeEl = document.getElementById('vgo-type-input');
+                if (typeEl) typeEl.value = String(vgoHit.mapGoId || 0);
+                this.render();
+                this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`);
+            } else {
+                this.selectedVgo = null;
+                this.render();
+            }
+            return;
+        }
         // Eff edit: select eff under cursor (unless panning with Ctrl)
         if (this.isEffEditingMode && !this.isCtrlDown) {
             const effHit = this.hitTestEff(mx, my);
@@ -1143,6 +1200,13 @@ class MapViewerApp {
             this.render();
             return;
         }
+        if (this.isVgoEditingMode && this.selectedVgo && this.isDraggingVgo && !this.isCtrlDown) {
+            if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
+            this.selectedVgo.x = Math.round(mx);
+            this.selectedVgo.y = Math.round(my);
+            this.render();
+            return;
+        }
         if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) {
             // push snapshot only once when drag starts
             if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
@@ -1166,6 +1230,7 @@ class MapViewerApp {
         this.isPanning = false;
         this.isDraggingIcon = false;
         this.isDraggingEff = false;
+        this.isDraggingVgo = false;
         this.dragStartedForUndo = false;
         this.canvas.classList.remove('grabbing');
     }
@@ -1281,6 +1346,7 @@ class MapViewerApp {
         if (this.isEffEditingMode && this.selectedEff) {
             this.highlightSelection(this.selectedEff.x, this.selectedEff.y, TILE_SIZE, TILE_SIZE);
         }
+        // If a VGO is selected, emphasize selection (already highlighted in drawVgo)
      }
  
     highlightSelection(x, y, w, h) {
@@ -1300,7 +1366,8 @@ class MapViewerApp {
         this.ctx.arc(centerX, centerY, TILE_SIZE / 2, 0, 2 * Math.PI);
         this.ctx.fillStyle = 'rgba(59, 130, 246, 0.7)';
         this.ctx.fill();
-        this.ctx.strokeStyle = '#2563EB';
+        // highlight when selected in VGO mode
+        this.ctx.strokeStyle = (this.isVgoEditingMode && this.selectedVgo === vgo) ? '#ffd700' : '#2563EB';
         this.ctx.lineWidth = 1.5 / this.scale;
         this.ctx.stroke();
 
@@ -1425,6 +1492,53 @@ class MapViewerApp {
             }
         }
         return null;
+    }
+
+    // --- VGO editing helpers ---
+    hitTestVgo(mx, my) {
+        if (!this.mapData) return null;
+        for (let i = this.mapData.vgos.length - 1; i >= 0; i--) {
+            const v = this.mapData.vgos[i];
+            // vgo drawn as circle radius TILE_SIZE/2 around tile center
+            const cx = v.x + TILE_SIZE / 2;
+            const cy = v.y + TILE_SIZE / 2;
+            const dx = mx - cx;
+            const dy = my - cy;
+            if (dx*dx + dy*dy <= (TILE_SIZE/2)*(TILE_SIZE/2)) return v;
+        }
+        return null;
+    }
+
+    handleAddVgoAtCenter() {
+        if (!this.mapData) return;
+        const nameEl = document.getElementById('vgo-name-input');
+        const typeEl = document.getElementById('vgo-type-input');
+        const name = String(nameEl?.value || '');
+        const type = Math.max(0, parseInt((typeEl?.value)||'0', 10) || 0);
+        const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+        const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+        const tx = Math.max(0, Math.round(cx / TILE_SIZE));
+        const ty = Math.max(0, Math.round(cy / TILE_SIZE));
+        this.pushUndoSnapshot();
+        const vgo = { x: tx * TILE_SIZE, y: ty * TILE_SIZE, name, mapGoId: type, xNew: 0, yNew: 0 };
+        this.mapData.vgos.push(vgo);
+        this.selectedVgo = vgo;
+        this.render();
+        this.log(`Đã thêm VGO '${name}' (type=${type}) tại giữa màn hình.`);
+    }
+
+    handleDeleteSelectedVgo() {
+        if (!this.mapData) return;
+        if (!this.selectedVgo) { this.log('Chưa chọn VGO nào. Bật chế độ sửa VGO và click vào cổng.'); return; }
+        const idx = this.mapData.vgos.indexOf(this.selectedVgo);
+        if (idx >= 0) {
+            this.pushUndoSnapshot();
+            const name = this.selectedVgo.name || '';
+            this.mapData.vgos.splice(idx, 1);
+            this.selectedVgo = null;
+            this.render();
+            this.log(`Đã xóa VGO '${name}'.`);
+        }
     }
 
     // --- Eff editing helpers ---
