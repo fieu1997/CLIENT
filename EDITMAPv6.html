@@ -2117,16 +2117,32 @@ class MapViewerApp {
 				const w = img?.width || TILE_SIZE;
 				const h = img?.height || TILE_SIZE;
 				const ratio = h / Math.max(1, w);
-				// Stable detection: prefer divisibility; special-case small-width sprites
+				// Detect midline seam (2-frame) for ambiguous tall sprites (e.g., 22x88, 25x88)
 				let frames = 1;
 				const r = ratio;
-				const isSmall = w <= 24;
-				const near = (x, y, tol) => Math.abs(x - y) <= tol;
-				if ((h % 4 === 0 || near(r, 4, 0.05)) && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
-				else if ((h % 2 === 0 || near(r, 2, 0.05)) && r >= 1.45) frames = 2;
-				else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
-				else if (r >= 1.45) frames = 2;
-				else frames = 1;
+				let forceTwo = false;
+				if (r >= 3.0 && r <= 4.2) {
+					try {
+						const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
+						const data = ctx.getImageData(0, 0, w, h).data;
+						const stripeAvg = (cy) => { const band = Math.max(1, Math.round(h * 0.04)); let sum = 0, cnt = 0; const y0 = Math.max(0, cy - band), y1 = Math.min(h - 1, cy + band); for (let y = y0; y <= y1; y++) { let o = y * w * 4 + 3; let s = 0; for (let x = 0; x < w; x++) { s += data[o]; o += 4; } sum += s / (255 * w); cnt++; } return cnt > 0 ? sum / cnt : 1; };
+						const mid = Math.floor(h / 2), q1 = Math.floor(h / 4), q3 = Math.floor((3 * h) / 4);
+						const m = stripeAvg(mid), a = stripeAvg(q1), b = stripeAvg(q3);
+						if (m <= Math.min(a, b) - 0.06) forceTwo = true;
+					} catch {}
+				}
+				if (forceTwo) {
+					frames = 2;
+				} else {
+					// Prefer divisibility; special-case small-width sprites
+					const isSmall = w <= 24;
+					const near = (x, y, tol) => Math.abs(x - y) <= tol;
+					if ((h % 4 === 0 || near(r, 4, 0.05)) && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
+					else if ((h % 2 === 0 || near(r, 2, 0.05)) && r >= 1.45) frames = 2;
+					else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
+					else if (r >= 1.45) frames = 2;
+					else frames = 1;
+				}
 				const slices = [];
 				if (frames === 1) { slices.push({ sy: 0, sh: h }); return slices; }
 				const per = Math.floor(h / frames);
