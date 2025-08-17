@@ -883,6 +883,7 @@ class MapViewerApp {
 				document.getElementById('fp-update-eff-id-button')?.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
 				document.getElementById('fp-update-eff-raw-button')?.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
 				this.renderEffParamEditor();
+				this.updateEffRawFieldFromSelected();
 				break;
 			case 'vgo':
 				if (title) title.textContent = 'VGO';
@@ -1408,7 +1409,7 @@ class MapViewerApp {
 		}
 		if (this.isEffEditingMode && !this.isCtrlDown) {
 			const effHit = this.hitTestEff(mx, my);
-			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.renderEffParamEditor(); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
+			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.renderEffParamEditor(); this.updateEffRawFieldFromSelected(); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
 			else { this.selectedEff = null; this.renderEffParamEditor(); this.render(); }
 			return;
 		}
