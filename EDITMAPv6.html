@@ -2149,14 +2149,11 @@ class MapViewerApp {
 					slices.push({ sy: 0, sh: Math.max(1, s) });
 					slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
 				} else {
-					const margin = Math.round(h * 0.08);
-					const mid = findSeamBetween(margin, h - margin);
-					const top = findSeamBetween(margin, mid - Math.max(1, Math.floor(margin / 2)));
-					const bot = findSeamBetween(mid + Math.max(1, Math.floor(margin / 2)), h - margin);
-					slices.push({ sy: 0, sh: Math.max(1, top) });
-					slices.push({ sy: top + 1, sh: Math.max(1, mid - (top + 1)) });
-					slices.push({ sy: mid + 1, sh: Math.max(1, bot - (mid + 1)) });
-					slices.push({ sy: bot + 1, sh: Math.max(1, h - (bot + 1)) });
+					// 4-frame: quay về cắt đều để đảm bảo ổn định như trước (không dò seam)
+					const per = Math.floor(h / 4);
+					const rem = h - per * 4;
+					let y0 = 0;
+					for (let i = 0; i < 4; i++) { const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; }
 				}
 				const minSh = Math.max(1, Math.floor(h / (frames * 4)));
 				if (slices.length !== frames || slices.some(s => s.sh < minSh)) { slices.length = 0; const per = Math.floor(h / frames); const rem = h - per * frames; let y0 = 0; for (let i = 0; i < frames; i++) { const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; } }
