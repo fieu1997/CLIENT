@@ -162,9 +162,32 @@
 		#npc-editor-form .field { margin-bottom: 8px; }
 		#npc-editor-actions { display: flex; gap: 8px; margin-top: 8px; }
 		.icon-preview { width: 48px; height: 48px; border: 1px solid var(--border-color); display:flex; align-items:center; justify-content:center; }
+		/* Top toolbar and floating panel */
+		#top-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: var(--surface-color); border-bottom: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center; padding: 8px 12px; }
+		#top-toolbar .mode-button { background: #3a3a3a; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
+		#top-toolbar .mode-button.active { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+		.app-container { margin-top: 48px; }
+		.floating-panel { position: absolute; top: 80px; left: 420px; width: 420px; height: 360px; background: #1f1f1f; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 1200; display: flex; flex-direction: column; resize: both; overflow: hidden; }
+		.floating-header { display: flex; align-items: center; justify-content: space-between; background: #2b2b2b; padding: 6px 10px; cursor: move; border-bottom: 1px solid var(--border-color); }
+		.floating-title { font-weight: 700; color: var(--text-color); }
+		.floating-controls { display: flex; gap: 6px; }
+		.floating-controls button { background: #444; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+		.floating-controls button:hover { background: #555; }
+		.floating-content { flex: 1; overflow: auto; padding: 10px; }
+		.floating-panel.minimized { height: auto; }
+		.floating-panel.minimized .floating-content { display: none; }
+		.floating-content::-webkit-scrollbar { width: 8px; height: 8px; }
+		.floating-content::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
 	</style>
 </head>
 <body>
+	<div id="top-toolbar">
+		<button class="mode-button" data-mode="tile">Sửa Tile</button>
+		<button class="mode-button" data-mode="icon">Icon</button>
+		<button class="mode-button" data-mode="eff">Eff</button>
+		<button class="mode-button" data-mode="vgo">VGO</button>
+		<button class="mode-button" data-mode="npc">NPC</button>
+	</div>
 	<div class="app-container">
 		<div class="sidebar">
 			<header>
@@ -257,7 +280,13 @@
 				</div>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" id="icon-palette-panel" style="display:none;">
+				<h2>Danh sách Icon (0-999)</h2>
+				<div id="icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:220px; overflow:auto;"></div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Kéo icon từ danh sách và thả vào map để thêm nhanh.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
 				<h2>5. Chỉnh sửa Tile</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="tile-edit-mode">
@@ -269,13 +298,7 @@
 				</div>
 			</div>
 
-			<div class="control-group" id="icon-palette-panel" style="display:none;">
-				<h2>Danh sách Icon (0-999)</h2>
-				<div id="icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:220px; overflow:auto;"></div>
-				<div class="small-muted" style="margin-top: 0.5rem;">Kéo icon từ danh sách và thả vào map để thêm nhanh.</div>
-			</div>
-
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>6. Sửa Icon (0-999)</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="icon-edit-mode">
@@ -292,7 +315,7 @@
 				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Bật chế độ sửa icon, click vào icon để chọn rồi kéo thả để đổi vị trí. Chuột phải lên icon để xóa nhanh.</div>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>7. Sửa Eff</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="eff-edit-mode">
@@ -319,7 +342,7 @@
 				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa eff.</div>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>8. Sửa Cổng VGO</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="vgo-edit-mode">
@@ -336,7 +359,7 @@
 				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Mũi tên chỉ hướng sẽ do client quyết định theo chuẩn của map.</div>
 			</div>
 
-			<div class="control-group">
+			<div class="control-group" style="display:none;">
 				<h2>9. NPC</h2>
 				<div class="inline" style="margin-bottom: 0.5rem;">
 					<input type="checkbox" id="npc-edit-mode">
@@ -539,6 +562,10 @@ class MapViewerApp {
 	undoStack = [];
 	undoButton = null;
 	dragStartedForUndo = false;
+	// Floating UI state
+	floatingPanel = null;
+	floatingContent = null;
+	currentMode = 'none';
 
 	constructor() {
 		this.canvas = document.getElementById('map-canvas');
@@ -555,6 +582,7 @@ class MapViewerApp {
 		this.npcEditorTitle = document.getElementById('npc-editor-title');
 
 		this.initEventListeners();
+		this.initTopToolbar();
 		this.log("Map viewer đã khởi tạo. Sẵn sàng nhận file.");
 	}
 
@@ -588,46 +616,9 @@ class MapViewerApp {
 		if (ft) ft.addEventListener('input', onParam);
 		if (gt) gt.addEventListener('input', onParam);
 		
-		// Tile edit controls
-		const tem = document.getElementById('tile-edit-mode');
-		if (tem) tem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('tile'); else this.setExclusiveEditMode('none'); });
-		// Icon edit controls
-		const iem = document.getElementById('icon-edit-mode');
-		const addIconBtn = document.getElementById('add-icon-button');
-		const delIconBtn = document.getElementById('delete-icon-button');
-		if (iem) iem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('icon'); else this.setExclusiveEditMode('none'); });
-		if (addIconBtn) addIconBtn.addEventListener('click', this.handleAddIconAtCenter.bind(this));
-		if (delIconBtn) delIconBtn.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
+		// Tile/Icon/Eff/VGO/NPC controls are now handled via floating panel
 
-		// Eff edit controls
-		const eem = document.getElementById('eff-edit-mode');
-		const addEffBtn = document.getElementById('add-eff-button');
-		const delEffBtn = document.getElementById('delete-eff-button-eff');
-		const updEffIdBtn = document.getElementById('update-eff-id-button');
-		const updEffRawBtn = document.getElementById('update-eff-raw-button');
-		if (eem) eem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('eff'); else this.setExclusiveEditMode('none'); });
-		if (addEffBtn) addEffBtn.addEventListener('click', this.handleAddEffAtCenter.bind(this));
-		if (delEffBtn) delEffBtn.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
-		if (updEffIdBtn) updEffIdBtn.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
-		if (updEffRawBtn) updEffRawBtn.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
-
-		// VGO edit controls
-		const vem = document.getElementById('vgo-edit-mode');
-		const addVgoBtn = document.getElementById('add-vgo-button');
-		const delVgoBtn = document.getElementById('delete-vgo-button');
-		const vgoNameInput = document.getElementById('vgo-name-input');
-		if (vem) vem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('vgo'); else this.setExclusiveEditMode('none'); });
-		if (addVgoBtn) addVgoBtn.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
-		if (delVgoBtn) delVgoBtn.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
-		if (vgoNameInput) vgoNameInput.addEventListener('input', () => { if (this.selectedVgo) { this.selectedVgo.name = String(vgoNameInput.value || ''); this.render(); } });
-
-		// NPC controls
-		document.getElementById('npc-input')?.addEventListener('change', this.handleNpcFiles.bind(this));
-		const nem = document.getElementById('npc-edit-mode');
-		if (nem) nem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('npc'); else this.setExclusiveEditMode('none'); });
-		document.getElementById('add-npc-button')?.addEventListener('click', this.handleAddNpc.bind(this));
-		document.getElementById('edit-npc-button')?.addEventListener('click', () => { if (this.selectedNpc) this.showNpcEditor(this.selectedNpc, false); else this.log('Chưa chọn NPC.'); });
-		document.getElementById('save-npcs-button')?.addEventListener('click', this.handleSaveNpcs.bind(this));
+		// NPC modal
 		document.getElementById('npc-editor-save')?.addEventListener('click', this.handleNpcEditorSave.bind(this));
 		document.getElementById('npc-editor-cancel')?.addEventListener('click', () => this.hideNpcEditor(true));
 		document.getElementById('npc-iconMiniMap')?.addEventListener('input', () => { this.updateNpcEditorIconPreview('npc-iconMiniMap', 'minimap-icon-preview', 3000); });
@@ -647,6 +638,213 @@ class MapViewerApp {
 		// Ctrl tracking
 		window.addEventListener('keydown', (e) => { if (e.key === 'Control') this.isCtrlDown = true; });
 		window.addEventListener('keyup', (e) => { if (e.key === 'Control') this.isCtrlDown = false; });
+	}
+
+	initTopToolbar() {
+		const toolbar = document.getElementById('top-toolbar');
+		if (!toolbar) return;
+		const buttons = Array.from(toolbar.querySelectorAll('.mode-button'));
+		buttons.forEach(btn => {
+			btn.addEventListener('click', () => {
+				const mode = btn.getAttribute('data-mode');
+				this.openMode(mode);
+			});
+		});
+	}
+
+	updateModeButtonsState(active) {
+		const toolbar = document.getElementById('top-toolbar');
+		if (!toolbar) return;
+		const buttons = Array.from(toolbar.querySelectorAll('.mode-button'));
+		buttons.forEach(btn => {
+			const mode = btn.getAttribute('data-mode');
+			if (active && mode === active) btn.classList.add('active'); else btn.classList.remove('active');
+		});
+	}
+
+	openMode(mode) {
+		if (!mode) return;
+		this.currentMode = mode;
+		this.setExclusiveEditMode(mode);
+		this.ensureFloatingPanel();
+		this.setFloatingContent(mode);
+		this.updateModeButtonsState(mode);
+	}
+
+	ensureFloatingPanel() {
+		if (this.floatingPanel) { this.floatingPanel.style.display = 'flex'; return; }
+		const panel = document.createElement('div');
+		panel.className = 'floating-panel';
+		panel.id = 'floating-panel';
+		panel.style.top = '80px';
+		panel.style.left = '420px';
+		const header = document.createElement('div');
+		header.className = 'floating-header';
+		const title = document.createElement('div');
+		title.className = 'floating-title';
+		title.id = 'floating-title';
+		title.textContent = 'Editor';
+		const controls = document.createElement('div'); controls.className = 'floating-controls';
+		const minimizeBtn = document.createElement('button'); minimizeBtn.textContent = 'Thu nhỏ';
+		const closeBtn = document.createElement('button'); closeBtn.textContent = 'Đóng';
+		controls.appendChild(minimizeBtn); controls.appendChild(closeBtn);
+		header.appendChild(title); header.appendChild(controls);
+		const content = document.createElement('div'); content.className = 'floating-content';
+		panel.appendChild(header); panel.appendChild(content);
+		this.canvasContainer.appendChild(panel);
+		this.floatingPanel = panel;
+		this.floatingContent = content;
+		this.enablePanelDrag(panel, header);
+		minimizeBtn.addEventListener('click', () => this.minimizeFloatingPanel());
+		closeBtn.addEventListener('click', () => { this.closeFloatingPanel(); this.updateModeButtonsState('none'); });
+	}
+
+	setFloatingContent(mode) {
+		if (!this.floatingContent) return;
+		const title = document.getElementById('floating-title');
+		switch (mode) {
+			case 'tile':
+				if (title) title.textContent = 'Sửa Tile';
+				this.floatingContent.innerHTML = `
+					<div class="small-muted" style="margin-bottom:8px;">Chọn tile và vẽ lên bản đồ (giữ Ctrl để pan/zoom)</div>
+					<div class="inline" style="margin-bottom:6px;">Tile đang chọn: <strong id="fp-selected-tile-id">${this.selectedTileId}</strong></div>
+					<div id="fp-tile-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 24px); gap:4px;"></div>
+				`;
+				this.populateTilePalette();
+				break;
+			case 'icon':
+				if (title) title.textContent = 'Icon';
+				this.floatingContent.innerHTML = `
+					<div class="inline" style="gap:6px; margin-bottom: 8px;">
+						<input id="fp-icon-id-input" type="number" min="0" max="999" step="1" value="0" style="width:120px;">
+						<button id="fp-add-icon-button" class="action-button">Thêm icon</button>
+						<button id="fp-delete-icon-button" class="action-button" style="background-color:#d9534f;">Xóa icon đã chọn</button>
+					</div>
+					<div id="fp-icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:calc(100% - 60px); overflow:auto;"></div>
+				`;
+				this.populateIconPalette();
+				document.getElementById('fp-add-icon-button')?.addEventListener('click', this.handleAddIconAtCenter.bind(this));
+				document.getElementById('fp-delete-icon-button')?.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
+				break;
+			case 'eff':
+				if (title) title.textContent = 'Eff';
+				this.floatingContent.innerHTML = `
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-eff-id-input">ID eff</label>
+							<input id="fp-eff-id-input" type="number" min="0" step="1" value="0">
+						</div>
+						<div class="inline" style="gap:6px; margin-top: 1.4rem;">
+							<button id="fp-add-eff-button" class="action-button">Thêm eff</button>
+							<button id="fp-delete-eff-button" class="action-button" style="background-color:#d9534f;">Xóa eff đã chọn</button>
+						</div>
+					</div>
+					<div class="grid-2" style="gap:8px; margin-top:8px;">
+						<div>
+							<label for="fp-eff-selected-id">Cập nhật ID cho eff đã chọn</label>
+							<input id="fp-eff-selected-id" type="number" min="0" step="1" value="0">
+						</div>
+						<div class="inline" style="gap:6px; margin-top: 1.4rem;">
+							<button id="fp-update-eff-id-button" class="action-button">Cập nhật ID</button>
+						</div>
+					</div>
+					<div style="margin-top:8px;">
+						<label for="fp-eff-raw-input">Raw (nâng cao)</label>
+						<input id="fp-eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
+						<button id="fp-update-eff-raw-button" class="action-button" style="margin-top:6px;">Cập nhật Raw</button>
+					</div>
+				`;
+				document.getElementById('fp-add-eff-button')?.addEventListener('click', this.handleAddEffAtCenter.bind(this));
+				document.getElementById('fp-delete-eff-button')?.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
+				document.getElementById('fp-update-eff-id-button')?.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
+				document.getElementById('fp-update-eff-raw-button')?.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
+				break;
+			case 'vgo':
+				if (title) title.textContent = 'VGO';
+				this.floatingContent.innerHTML = `
+					<div>
+						<label for="fp-vgo-name-input">Tên cổng</label>
+						<input id="fp-vgo-name-input" type="text" placeholder="Tên cổng...">
+					</div>
+					<div class="inline" style="gap: 6px; margin-top: 8px;">
+						<button id="fp-add-vgo-button" class="action-button">Thêm cổng VGO</button>
+						<button id="fp-delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
+					</div>
+					<div class="small-muted" style="margin-top: 0.5rem;">Giữ Ctrl để pan/zoom. Mũi tên hướng sẽ tự suy ra theo client.</div>
+				`;
+				document.getElementById('fp-add-vgo-button')?.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
+				document.getElementById('fp-delete-vgo-button')?.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
+				const nameInput = document.getElementById('fp-vgo-name-input');
+				if (nameInput) nameInput.addEventListener('input', () => { if (this.selectedVgo) { this.selectedVgo.name = String(nameInput.value || ''); this.render(); } });
+				break;
+			case 'npc':
+				if (title) title.textContent = 'NPC';
+				this.floatingContent.innerHTML = `
+					<div class="file-input-group">
+						<label for="fp-npc-input">Tệp NPC (.dat)</label>
+						<input type="file" id="fp-npc-input" accept=".dat,.*" multiple>
+					</div>
+					<div class="inline" style="gap: 6px;">
+						<button id="fp-add-npc-button" class="action-button">Thêm NPC</button>
+						<button id="fp-edit-npc-button" class="action-button" style="background-color:#6c757d;">Sửa NPC đã chọn</button>
+						<button id="fp-save-npcs-button" class="action-button" style="background-color:#0275d8;">Lưu NPC</button>
+					</div>
+					<div class="small-muted" style="margin-top: 0.5rem;">Icon minimap: 3000+; Icon tương tác: 3500+.</div>
+				`;
+				document.getElementById('fp-npc-input')?.addEventListener('change', this.handleNpcFiles.bind(this));
+				document.getElementById('fp-add-npc-button')?.addEventListener('click', this.handleAddNpc.bind(this));
+				document.getElementById('fp-edit-npc-button')?.addEventListener('click', () => { if (this.selectedNpc) this.showNpcEditor(this.selectedNpc, false); else this.log('Chưa chọn NPC.'); });
+				document.getElementById('fp-save-npcs-button')?.addEventListener('click', this.handleSaveNpcs.bind(this));
+				break;
+			default:
+				this.floatingContent.innerHTML = '';
+		}
+	}
+
+	enablePanelDrag(panel, header) {
+		let dragging = false;
+		let startX = 0, startY = 0;
+		let panelStartLeft = 0, panelStartTop = 0;
+		header.addEventListener('mousedown', (e) => {
+			if (e.target && e.target.closest && e.target.closest('.floating-controls')) return;
+			dragging = true;
+			startX = e.clientX;
+			startY = e.clientY;
+			const rect = panel.getBoundingClientRect();
+			panelStartLeft = rect.left;
+			panelStartTop = rect.top;
+			document.addEventListener('mousemove', onMove);
+			document.addEventListener('mouseup', onUp, { once: true });
+			e.preventDefault();
+		});
+		const onMove = (e) => {
+			if (!dragging) return;
+			const dx = e.clientX - startX;
+			const dy = e.clientY - startY;
+			const containerRect = this.canvasContainer.getBoundingClientRect();
+			const newLeft = Math.min(containerRect.right - 80, Math.max(containerRect.left + 0, panelStartLeft + dx));
+			const newTop = Math.min(containerRect.bottom - 40, Math.max(containerRect.top + 0, panelStartTop + dy));
+			panel.style.left = `${newLeft - containerRect.left}px`;
+			panel.style.top = `${newTop - containerRect.top}px`;
+		};
+		const onUp = () => {
+			dragging = false;
+			document.removeEventListener('mousemove', onMove);
+		};
+	}
+
+	closeFloatingPanel() {
+		if (!this.floatingPanel) return;
+		this.canvasContainer.removeChild(this.floatingPanel);
+		this.floatingPanel = null;
+		this.floatingContent = null;
+		this.setExclusiveEditMode('none');
+		this.currentMode = 'none';
+	}
+
+	minimizeFloatingPanel() {
+		if (!this.floatingPanel) return;
+		this.floatingPanel.classList.toggle('minimized');
 	}
 
 	setExclusiveEditMode(mode) {
@@ -1071,13 +1269,13 @@ class MapViewerApp {
 		if (this.isTileEditingMode && !this.isCtrlDown) { this.isPainting = true; this.paintTileAt(mx, my); return; }
 		if (this.isVgoEditingMode && !this.isCtrlDown) {
 			const vgoHit = this.hitTestVgo(mx, my);
-			if (vgoHit) { this.selectedVgo = vgoHit; this.isDraggingVgo = true; const nameInput = document.getElementById('vgo-name-input'); if (nameInput) nameInput.value = String(vgoHit.name || ''); this.render(); this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`); }
+			if (vgoHit) { this.selectedVgo = vgoHit; this.isDraggingVgo = true; const nameInput = document.getElementById('fp-vgo-name-input') || document.getElementById('vgo-name-input'); if (nameInput) nameInput.value = String(vgoHit.name || ''); this.render(); this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`); }
 			else { this.selectedVgo = null; this.render(); }
 			return;
 		}
 		if (this.isEffEditingMode && !this.isCtrlDown) {
 			const effHit = this.hitTestEff(mx, my);
-			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
+			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
 			else { this.selectedEff = null; this.render(); }
 			return;
 		}
@@ -1266,8 +1464,8 @@ class MapViewerApp {
 	populateTilePalette() {
 		try {
 			if (!this.tilesetImage) return;
-			const container = document.getElementById('tile-palette-container');
-			const selectedSpan = document.getElementById('selected-tile-id');
+			const container = document.getElementById('fp-tile-palette-container') || document.getElementById('tile-palette-container');
+			const selectedSpan = document.getElementById('fp-selected-tile-id') || document.getElementById('selected-tile-id');
 			if (!container || !selectedSpan) return;
 			container.innerHTML = '';
 			const cols = Math.floor(this.tilesetImage.width / TILE_SIZE);
@@ -1344,7 +1542,7 @@ class MapViewerApp {
 
 	handleAddVgoAtCenter() {
 		if (!this.mapData) return;
-		const nameEl = document.getElementById('vgo-name-input');
+		const nameEl = document.getElementById('fp-vgo-name-input') || document.getElementById('vgo-name-input');
 		const name = String(nameEl?.value || '');
 		const type = 100;
 		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
@@ -1383,7 +1581,7 @@ class MapViewerApp {
 
 	handleAddIconAtCenter() {
 		if (!this.mapData) return;
-		const idInput = document.getElementById('icon-id-input');
+		const idInput = document.getElementById('fp-icon-id-input') || document.getElementById('icon-id-input');
 		const iconId = Math.max(0, Math.min(999, parseInt((idInput?.value)||'0', 10) || 0));
 		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
 		const cy = (this.canvas.height / 2 - this.panY) / this.scale;
@@ -1397,7 +1595,7 @@ class MapViewerApp {
 
 	handleAddEffAtCenter() {
 		if (!this.mapData) return;
-		const idInput = document.getElementById('eff-id-input');
+		const idInput = document.getElementById('fp-eff-id-input') || document.getElementById('eff-id-input');
 		const effId = Math.max(0, parseInt((idInput?.value)||'0', 10) || 0);
 		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
 		const cy = (this.canvas.height / 2 - this.panY) / this.scale;
@@ -1407,8 +1605,8 @@ class MapViewerApp {
 		const eff = { id: effId, x: tx * TILE_SIZE, y: ty * TILE_SIZE, name: `Eff ID: ${effId}`, text: `Eff: ${effId}`, raw: `0;${effId};${tx};${ty};0;0;0;0` };
 		this.mapData.effData.push(eff);
 		this.selectedEff = eff;
-		const sid = document.getElementById('eff-selected-id'); if (sid) sid.value = String(effId);
-		const rawEl = document.getElementById('eff-raw-input'); if (rawEl) rawEl.value = eff.raw;
+		const sid = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (sid) sid.value = String(effId);
+		const rawEl = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawEl) rawEl.value = eff.raw;
 		this.render();
 		this.log(`Đã thêm eff ${effId} tại giữa màn hình.`);
 	}
@@ -1422,7 +1620,7 @@ class MapViewerApp {
 
 	handleUpdateSelectedEffId() {
 		if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật ID.'); return; }
-		const sid = document.getElementById('eff-selected-id');
+		const sid = document.getElementById('fp-eff-selected-id') || document.getElementById('eff-selected-id');
 		const newId = Math.max(0, parseInt((sid?.value)||'0', 10) || 0);
 		this.pushUndoSnapshot();
 		this.selectedEff.id = newId;
@@ -1435,7 +1633,7 @@ class MapViewerApp {
 
 	handleUpdateSelectedEffRaw() {
 		if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật Raw.'); return; }
-		const rawEl = document.getElementById('eff-raw-input');
+		const rawEl = document.getElementById('fp-eff-raw-input') || document.getElementById('eff-raw-input');
 		const newRaw = String(rawEl?.value || '');
 		this.pushUndoSnapshot();
 		this.selectedEff.raw = newRaw;
@@ -1448,7 +1646,7 @@ class MapViewerApp {
 		this.selectedEff.text = `Eff: ${newId}`;
 		this.selectedEff.x = tx * TILE_SIZE;
 		this.selectedEff.y = ty * TILE_SIZE;
-		const sid = document.getElementById('eff-selected-id'); if (sid) sid.value = String(newId);
+		const sid = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (sid) sid.value = String(newId);
 		this.render();
 		this.log('Đã cập nhật Raw của eff.');
 	}
@@ -1463,7 +1661,7 @@ class MapViewerApp {
 
 	populateIconPalette() {
 		try {
-			const panel = document.getElementById('icon-palette-container');
+			const panel = document.getElementById('fp-icon-palette-container') || document.getElementById('icon-palette-container');
 			if (!panel) return;
 			panel.innerHTML = '';
 			const entries = Array.from(this.effectIcons.entries()).filter(([id, img]) => id >= 0 && id <= 999).sort((a,b) => a[0] - b[0]);
