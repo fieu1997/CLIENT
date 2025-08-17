@@ -329,10 +329,6 @@
 					<label for="vgo-name-input">Tên cổng</label>
 					<input id="vgo-name-input" type="text" placeholder="Tên cổng...">
 				</div>
-				<div class="file-input-group">
-					<label for="vgo-type-input">Loại (type)</label>
-					<input id="vgo-type-input" type="number" min="0" max="999" step="1" value="0">
-				</div>
 				<div class="inline" style="gap: 0.5rem; margin-top: 0.5rem;">
 					<button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
 					<button id="update-vgo-button" class="action-button" style="background-color:#0275d8;">Cập nhật cổng VGO</button>
@@ -1076,7 +1072,7 @@ class MapViewerApp {
 		if (this.isTileEditingMode && !this.isCtrlDown) { this.isPainting = true; this.paintTileAt(mx, my); return; }
 		if (this.isVgoEditingMode && !this.isCtrlDown) {
 			const vgoHit = this.hitTestVgo(mx, my);
-			if (vgoHit) { this.selectedVgo = vgoHit; this.isDraggingVgo = true; document.getElementById('vgo-name-input').value = String(vgoHit.name || ''); document.getElementById('vgo-type-input').value = String(vgoHit.mapGoId || 0); this.render(); this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`); }
+			if (vgoHit) { this.selectedVgo = vgoHit; this.isDraggingVgo = true; const nameInput = document.getElementById('vgo-name-input'); if (nameInput) nameInput.value = String(vgoHit.name || ''); this.render(); this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`); }
 			else { this.selectedVgo = null; this.render(); }
 			return;
 		}
@@ -1368,7 +1364,6 @@ class MapViewerApp {
 	handleUpdateSelectedVgo() {
 		if (!this.mapData || !this.selectedVgo) { this.log('Chưa chọn VGO để cập nhật.'); return; }
 		const nameEl = document.getElementById('vgo-name-input');
-		const typeEl = document.getElementById('vgo-type-input');
 		const newName = String(nameEl?.value || '');
 		const newType = 100;
 		this.pushUndoSnapshot();
