@@ -2117,31 +2117,10 @@ class MapViewerApp {
 				const w = img?.width || TILE_SIZE;
 				const h = img?.height || TILE_SIZE;
 				const ratio = h / Math.max(1, w);
-				// Stable detection: prefer exact divisibility, fall back to ratio thresholds
+				// Stable detection: simple ratio-based
 				let frames = 1;
-				if (h >= w * 1.2) {
-					if (h % 4 === 0 && ratio >= 3.0) frames = 4;
-					else if (h % 2 === 0 && ratio >= 2.1) frames = 2;
-					else {
-						const near = (x, y, tol) => Math.abs(x - y) <= tol;
-						if (near(ratio, 4, 0.25)) frames = 4;
-						else if (near(ratio, 2, 0.25)) frames = 2;
-						// Ambiguous band (~3.2-3.7 like 22x72, 26x86): probe alpha at midline to detect a clear 2-frame seam
-						else if (ratio > 3.0 && ratio < 3.8) {
-							try {
-								const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
-								const data = ctx.getImageData(0, 0, w, h).data;
-								const rowAlpha = (y) => { let s = 0; let o = y * w * 4 + 3; for (let x = 0; x < w; x++) { s += data[o]; o += 4; } return s / (255 * w); };
-								const mid = Math.floor(h / 2);
-								let center = 0; let cnt = 0; const band = Math.max(1, Math.round(h * 0.06));
-								for (let y = Math.max(1, mid - band); y <= Math.min(h - 2, mid + band); y++) { center += rowAlpha(y); cnt++; }
-								center = cnt > 0 ? center / cnt : 1;
-								// if center is much more transparent than neighbors, assume 2-frame
-								if (center <= 0.12) frames = 2; else frames = 4; // default to 4 when in doubt
-							} catch { frames = 4; }
-						}
-					}
-				}
+				const r = ratio;
+				if (r >= 3.9) frames = 4; else if (r >= 2.0) frames = 2; else frames = 1;
 				const slices = [];
 				if (frames === 1) { slices.push({ sy: 0, sh: h }); return slices; }
 				const per = Math.floor(h / frames);
