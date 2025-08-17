@@ -1201,9 +1201,22 @@ class MapViewerApp {
 			const panel = document.getElementById('tile-palette-panel');
 			if (panel) panel.style.display = 'block';
 			this.render();
+			// Nếu người dùng đã nhập ID-only, cập nhật ngay mapId
+			const idOnly = document.getElementById('fp-tileset-id-only');
+			if (idOnly && this.mapData) { const id = Math.max(0, parseInt(idOnly.value || '', 10) || this.mapData.tilesetId); this.applyTilesetIdOnly(id); }
 		};
 		this.tilesetImage.onerror = () => { this.log(`LỖI: Không thể tải ảnh tileset '${file.name}'.`); this.tilesetImage = null; }
 		this.tilesetImage.src = URL.createObjectURL(file);
+	}
+
+	applyTilesetIdOnly(id) {
+		if (!this.mapData) { this.log('Chưa có map để cập nhật tilesetId.'); return; }
+		const newId = id | 0;
+		if (this.mapData.tilesetId === newId) { this.log(`tilesetId đã là ${newId}.`); return; }
+		this.mapData.tilesetId = newId;
+		this.calculateCollisionMap();
+		this.render();
+		this.log(`Đã cập nhật tilesetId của map thành ${newId}. Khi lưu, byte thứ 3 sẽ là ${newId}.`);
 	}
 
 	async handleIconFiles(event) {
