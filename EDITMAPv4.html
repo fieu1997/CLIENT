@@ -331,7 +331,6 @@
 				</div>
 				<div class="inline" style="gap: 0.5rem; margin-top: 0.5rem;">
 					<button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
-					<button id="update-vgo-button" class="action-button" style="background-color:#0275d8;">Cập nhật cổng VGO</button>
 					<button id="delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
 				</div>
 				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Mũi tên chỉ hướng sẽ do client quyết định theo chuẩn của map.</div>
@@ -616,11 +615,11 @@ class MapViewerApp {
 		const vem = document.getElementById('vgo-edit-mode');
 		const addVgoBtn = document.getElementById('add-vgo-button');
 		const delVgoBtn = document.getElementById('delete-vgo-button');
-		const updVgoBtn = document.getElementById('update-vgo-button');
+		const vgoNameInput = document.getElementById('vgo-name-input');
 		if (vem) vem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('vgo'); else this.setExclusiveEditMode('none'); });
 		if (addVgoBtn) addVgoBtn.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
 		if (delVgoBtn) delVgoBtn.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
-		if (updVgoBtn) updVgoBtn.addEventListener('click', this.handleUpdateSelectedVgo.bind(this));
+		if (vgoNameInput) vgoNameInput.addEventListener('input', () => { if (this.selectedVgo) { this.selectedVgo.name = String(vgoNameInput.value || ''); this.render(); } });
 
 		// NPC controls
 		document.getElementById('npc-input')?.addEventListener('change', this.handleNpcFiles.bind(this));
@@ -1346,7 +1345,6 @@ class MapViewerApp {
 	handleAddVgoAtCenter() {
 		if (!this.mapData) return;
 		const nameEl = document.getElementById('vgo-name-input');
-		const typeEl = document.getElementById('vgo-type-input');
 		const name = String(nameEl?.value || '');
 		const type = 100;
 		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
@@ -1361,17 +1359,6 @@ class MapViewerApp {
 		this.log(`Đã thêm VGO '${name}' (type=${type}) tại giữa màn hình.`);
 	}
 
-	handleUpdateSelectedVgo() {
-		if (!this.mapData || !this.selectedVgo) { this.log('Chưa chọn VGO để cập nhật.'); return; }
-		const nameEl = document.getElementById('vgo-name-input');
-		const newName = String(nameEl?.value || '');
-		const newType = 100;
-		this.pushUndoSnapshot();
-		this.selectedVgo.name = newName;
-		this.selectedVgo.mapGoId = newType;
-		this.render();
-		this.log(`Đã cập nhật VGO thành tên='${newName}', type=${newType}.`);
-	}
 
 	handleDeleteSelectedVgo() {
 		if (!this.mapData) return;
