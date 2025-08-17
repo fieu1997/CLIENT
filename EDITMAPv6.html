@@ -2155,10 +2155,13 @@ class MapViewerApp {
 			let cache = this.npcFrameCache.get(img);
 			if (!cache || cache.w !== w || cache.h !== h || !Array.isArray(cache.slices)) {
 				const slices = this.computeNpcVerticalSlices(img);
-				cache = { w, h, frames: slices.length, slices };
+				cache = { w, h, frames: slices.length, slices, start: (Date.now() % (this.animationTickMs * 1000)) };
 				this.npcFrameCache.set(img, cache);
 			}
-			const frames = cache.frames; const slices = cache.slices; const idx = frames > 1 ? Math.floor(Date.now() / this.animationTickMs) % frames : 0; const sl = slices[idx] || { sy: 0, sh: h };
+			const frames = cache.frames; const slices = cache.slices;
+			const elapsed = Date.now() - (cache.start || 0);
+			const idx = frames > 1 ? Math.floor(elapsed / this.animationTickMs) % frames : 0;
+			const sl = slices[idx] || { sy: 0, sh: h };
 			return { sx: 0, sy: sl.sy, sw: w, sh: sl.sh };
 		}
 
