@@ -782,10 +782,8 @@ class MapViewerApp {
 				document.getElementById('fp-tileset-lib')?.addEventListener('change', this.handleTilesetLibrary.bind(this));
 				document.getElementById('fp-apply-tileset-id')?.addEventListener('click', () => {
 					const idEl = document.getElementById('fp-tileset-id-override');
-					const updEl = document.getElementById('fp-tileset-update-mapid');
 					const id = Math.max(0, parseInt(idEl?.value || '0', 10) || 0);
-					const update = !!(updEl && updEl.checked);
-					this.applyTilesetById(id, update);
+					this.applyTilesetById(id);
 				});
 				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
 				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
@@ -1054,7 +1052,7 @@ class MapViewerApp {
 			this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
 			// Nếu đã có thư viện tileset, tự áp dụng theo ID map
 			if (this.tilesetLibrary && this.tilesetLibrary.main && this.tilesetLibrary.main.size > 0) {
-				this.applyTilesetById(this.mapData.tilesetId, false);
+				this.applyTilesetById(this.mapData.tilesetId);
 			}
 			this.mapData.tileMap = [];
 			const tileData = reader.readBytes(this.mapData.width * this.mapData.height);
@@ -2235,18 +2233,18 @@ class MapViewerApp {
 		}
 	}
 
-	applyTilesetById(id, updateMapId = false) {
-		const img = this.tilesetLibrary?.main?.get(id);
-		if (!img) { this.log(`Không tìm thấy tile${id}.png trong thư viện.`); return; }
-		this.tilesetImage = img;
-		if (this.mapData && updateMapId) {
-			this.mapData.tilesetId = id | 0;
-			this.calculateCollisionMap();
+			applyTilesetById(id) {
+			const img = this.tilesetLibrary?.main?.get(id);
+			if (!img) { this.log(`Không tìm thấy tile${id}.png trong thư viện.`); return; }
+			this.tilesetImage = img;
+			if (this.mapData) {
+				this.mapData.tilesetId = id | 0;
+				this.calculateCollisionMap();
+			}
+			this.populateTilePalette();
+			this.render();
+			this.log(`Đã áp dụng tileset ID ${id} từ thư viện và cập nhật tilesetId của map.`);
 		}
-		this.populateTilePalette();
-		this.render();
-		this.log(`Đã áp dụng tileset từ thư viện: tile${id}.png${updateMapId ? ' (đã cập nhật tilesetId của map)' : ''}.`);
-	}
 }
 
 new MapViewerApp();
