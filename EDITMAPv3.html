@@ -322,31 +322,14 @@
                 </div>
                 <div class="file-input-group">
                     <label for="vgo-type-input">Loại (type)</label>
-                    <input id="vgo-type-input" type="number" min="0" max="99" step="1" value="0">
-                </div>
-                <div class="file-input-group">
-                    <label for="vgo-direction-select">Hướng chỉ dẫn</label>
-                    <select id="vgo-direction-select">
-                        <option value="up">Lên (Up)</option>
-                        <option value="right">Phải (Right)</option>
-                        <option value="down">Xuống (Down)</option>
-                        <option value="left">Trái (Left)</option>
-                    </select>
-                </div>
-                <div class="file-input-group">
-                    <label for="vgo-pointer-icon-id">ID icon bàn tay (tùy chọn)</label>
-                    <input id="vgo-pointer-icon-id" type="number" min="0" max="9999" step="1" placeholder="VD: 3600">
-                </div>
-                <div class="inline" style="gap: 0.5rem;">
-                    <input id="vgo-link-dir-type" type="checkbox" checked>
-                    <label for="vgo-link-dir-type">Liên kết Hướng với Type (0-3)</label>
+                    <input id="vgo-type-input" type="number" min="0" max="999" step="1" value="0">
                 </div>
                 <div class="inline" style="gap: 0.5rem; margin-top: 0.5rem;">
                     <button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
                     <button id="update-vgo-button" class="action-button" style="background-color:#0275d8;">Cập nhật cổng VGO</button>
                     <button id="delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
                 </div>
-                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Nếu cung cấp ID icon bàn tay, sẽ hiển thị icon nhấp nháy chỉ hướng. Nếu không, sẽ vẽ mũi tên.</div>
+                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Mũi tên chỉ hướng sẽ do client quyết định theo chuẩn của map.</div>
             </div>
 
             <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
@@ -566,15 +549,10 @@ class MapViewerApp {
         const addVgoBtn = document.getElementById('add-vgo-button');
         const delVgoBtn = document.getElementById('delete-vgo-button');
         const updVgoBtn = document.getElementById('update-vgo-button');
-        const vgoDirSel = document.getElementById('vgo-direction-select');
-        const vgoPtrIcon = document.getElementById('vgo-pointer-icon-id');
-        const vgoLinkDirType = document.getElementById('vgo-link-dir-type');
         if (vem) vem.addEventListener('change', (e) => { if (e.target.checked) this.setExclusiveEditMode('vgo'); else this.setExclusiveEditMode('none'); });
         if (addVgoBtn) addVgoBtn.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
         if (delVgoBtn) delVgoBtn.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
         if (updVgoBtn) updVgoBtn.addEventListener('click', this.handleUpdateSelectedVgo.bind(this));
-        if (vgoPtrIcon) vgoPtrIcon.addEventListener('input', () => { const v = parseInt(vgoPtrIcon.value||''); this.vgoPointerIconId = Number.isFinite(v) ? v : null; this.render(); });
-        if (vgoDirSel && vgoLinkDirType) vgoDirSel.addEventListener('change', () => { if (this.selectedVgo && vgoLinkDirType.checked) this.selectedVgo.mapGoId = this.directionToType(vgoDirSel.value); this.render(); });
 
         if (this.undoButton) this.undoButton.addEventListener('click', this.handleUndo.bind(this));
         
@@ -1160,10 +1138,6 @@ class MapViewerApp {
                 if (nameEl) nameEl.value = String(vgoHit.name || '');
                 const typeEl = document.getElementById('vgo-type-input');
                 if (typeEl) typeEl.value = String(vgoHit.mapGoId || 0);
-                const dirSel = document.getElementById('vgo-direction-select');
-                if (dirSel) dirSel.value = this.typeToDirection(vgoHit.mapGoId || 0);
-                const ptrEl = document.getElementById('vgo-pointer-icon-id');
-                if (ptrEl && this.vgoPointerIconId != null) ptrEl.value = String(this.vgoPointerIconId);
                 this.render();
                 this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`);
             } else {
@@ -1402,23 +1376,7 @@ class MapViewerApp {
         this.ctx.lineWidth = 1.5 / this.scale;
         this.ctx.stroke();
 
-        // Pointer arrow/hand
-        const dir = this.typeToDirection(vgo.mapGoId | 0);
-        const pointerIcon = this.vgoPointerIconId != null ? this.effectIcons.get(this.vgoPointerIconId) : null;
-        const angle = this.directionAngle(dir);
-        if (pointerIcon && pointerIcon.complete) {
-            // draw icon centered, rotated to direction
-            this.ctx.save();
-            this.ctx.translate(centerX, centerY);
-            this.ctx.rotate(angle);
-            const w = pointerIcon.width;
-            const h = pointerIcon.height;
-            this.ctx.drawImage(pointerIcon, -w/2, -h/2, w, h);
-            this.ctx.restore();
-        } else {
-            // draw arrow if no icon configured
-            this.drawArrow(centerX, centerY, angle);
-        }
+        // Client will handle direction pointer; no arrow rendering here
 
         if (vgo.name) {
             this.ctx.fillStyle = '#ffffff';
@@ -1562,11 +1520,8 @@ class MapViewerApp {
         if (!this.mapData) return;
         const nameEl = document.getElementById('vgo-name-input');
         const typeEl = document.getElementById('vgo-type-input');
-        const dirSel = document.getElementById('vgo-direction-select');
-        const linkDir = document.getElementById('vgo-link-dir-type');
         const name = String(nameEl?.value || '');
-        let type = Math.max(0, parseInt((typeEl?.value)||'0', 10) || 0);
-        if (dirSel && linkDir && linkDir.checked) type = this.directionToType(dirSel.value);
+        const type = Math.max(0, parseInt((typeEl?.value)||'0', 10) || 0);
         const cx = (this.canvas.width / 2 - this.panX) / this.scale;
         const cy = (this.canvas.height / 2 - this.panY) / this.scale;
         const tx = Math.max(0, Math.round(cx / TILE_SIZE));
@@ -1583,11 +1538,8 @@ class MapViewerApp {
         if (!this.mapData || !this.selectedVgo) { this.log('Chưa chọn VGO để cập nhật.'); return; }
         const nameEl = document.getElementById('vgo-name-input');
         const typeEl = document.getElementById('vgo-type-input');
-        const dirSel = document.getElementById('vgo-direction-select');
-        const linkDir = document.getElementById('vgo-link-dir-type');
         const newName = String(nameEl?.value || '');
-        let newType = Math.max(0, parseInt((typeEl?.value)||'0', 10) || 0);
-        if (dirSel && linkDir && linkDir.checked) newType = this.directionToType(dirSel.value);
+        const newType = Math.max(0, parseInt((typeEl?.value)||'0', 10) || 0);
         this.pushUndoSnapshot();
         this.selectedVgo.name = newName;
         this.selectedVgo.mapGoId = newType;
@@ -1890,52 +1842,7 @@ class MapViewerApp {
         this.log('Đã hoàn tác thay đổi gần nhất.');
     }
 
-    drawArrow(cx, cy, angleRad) {
-        const len = 14 / this.scale;
-        const head = 6 / this.scale;
-        this.ctx.save();
-        this.ctx.translate(cx, cy);
-        this.ctx.rotate(angleRad);
-        this.ctx.strokeStyle = '#fff';
-        this.ctx.lineWidth = 2 / this.scale;
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(len, 0);
-        this.ctx.stroke();
-        this.ctx.beginPath();
-        this.ctx.moveTo(len, 0);
-        this.ctx.lineTo(len - head, head/2);
-        this.ctx.lineTo(len - head, -head/2);
-        this.ctx.closePath();
-        this.ctx.fillStyle = '#fff';
-        this.ctx.fill();
-        this.ctx.restore();
-    }
-
-    typeToDirection(type) {
-        const t = (type|0) % 4;
-        return t === 0 ? 'up' : t === 1 ? 'right' : t === 2 ? 'down' : 'left';
-    }
-
-    directionToType(dir) {
-        switch(String(dir)) {
-            case 'up': return 0;
-            case 'right': return 1;
-            case 'down': return 2;
-            case 'left': return 3;
-            default: return 0;
-        }
-    }
-
-    directionAngle(dir) {
-        switch(String(dir)) {
-            case 'up': return -Math.PI/2;
-            case 'right': return 0;
-            case 'down': return Math.PI/2;
-            case 'left': return Math.PI;
-            default: return 0;
-        }
-    }
+    // Removed arrow/direction helpers: client handles VGO direction pointer
 
 }
 
