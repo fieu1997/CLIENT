@@ -777,6 +777,7 @@ class MapViewerApp {
 							<button id="fp-apply-tileset-id-only" class="action-button">Cập nhật ID map</button>
 						</div>
 					</div>
+					<div id="fp-tileset-info" class="small-muted" style="margin:6px 0; line-height:1.4;"></div>
 					<div class="grid-2" style="gap:8px; align-items:end;">
 						<div>
 							<label for="fp-header-b2">Header byte #2 (cột thứ 2 đầu file)</label>
@@ -809,6 +810,7 @@ class MapViewerApp {
 				document.getElementById('fp-export-tileset-extras')?.addEventListener('click', this.exportTilesetExtras.bind(this));
 				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
 				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
+				this.updateTilesetInfoDisplay();
 				break;
 			case 'resize':
 				if (title) title.textContent = 'Chỉnh Kích Thước';
@@ -1228,6 +1230,8 @@ class MapViewerApp {
 			// Nếu người dùng đã nhập ID-only, cập nhật ngay mapId
 			const idOnly = document.getElementById('fp-tileset-id-only');
 			if (idOnly && this.mapData) { const id = Math.max(0, parseInt(idOnly.value || '', 10) || this.mapData.tilesetId); this.applyTilesetIdOnly(id); }
+			this.lastTilesetFileName = file.name || '';
+			this.updateTilesetInfoDisplay();
 		};
 		this.tilesetImage.onerror = () => { this.log(`LỖI: Không thể tải ảnh tileset '${file.name}'.`); this.tilesetImage = null; }
 		this.tilesetImage.src = URL.createObjectURL(file);
@@ -1236,11 +1240,40 @@ class MapViewerApp {
 	applyTilesetIdOnly(id) {
 		if (!this.mapData) { this.log('Chưa có map để cập nhật tilesetId.'); return; }
 		const newId = id | 0;
-		if (this.mapData.tilesetId === newId) { this.log(`tilesetId đã là ${newId}.`); return; }
+		if (this.mapData.tilesetId === newId) { this.log(`tilesetId đã là ${newId}.`); this.updateTilesetInfoDisplay(); return; }
 		this.mapData.tilesetId = newId;
 		this.calculateCollisionMap();
 		this.render();
 		this.log(`Đã cập nhật tilesetId của map thành ${newId}. Khi lưu, byte thứ 3 sẽ là ${newId}.`);
+		this.updateTilesetInfoDisplay();
+	}
+
+	updateTilesetInfoDisplay() {
+		try {
+			const wrap = document.getElementById('fp-tileset-info');
+			if (!wrap) return;
+			const id = this.mapData ? (this.mapData.tilesetId | 0) : null;
+			const fname = this.lastTilesetFileName || '';
+			let detected = null;
+			if (fname) {
+				const low = fname.toLowerCase();
+				let m = low.match(/(?:^|[^0-9])(\d+)(?=\.png$)/i); // last number before .png
+				if (!m) m = low.match(/(?:tile|100_|101_|102_)(\d+)/);
+				if (m) detected = parseInt(m[1], 10);
+			}
+			let html = '';
+			if (id !== null) {
+				html += `Tileset ID (map): <b>${id}</b>. Yêu cầu ảnh: <code>tile${id}.png</code> hoặc <code>100_${id}.png</code>.`;
+				html += ` Water (tuỳ chọn): <code>tilewater${id}.png</code>/<code>102_${id}.png</code>. Small: <code>tile_small${id}.png</code>/<code>101_${id}.png</code>.`;
+			}
+			if (detected !== null && id !== null) {
+				if (detected !== id) html += ` <span style="color:#f87171; font-weight:600;">Cảnh báo: file '${fname}' có id ${detected} KHÁC id map ${id}.</span>`;
+				else html += ` <span style="color:#34d399;">Ảnh '${fname}' khớp id map.</span>`;
+			} else if (fname) {
+				html += `Ảnh tileset hiện tại: '${fname}'.`;
+			}
+			wrap.innerHTML = html || 'Chưa có map/tileset.';
+		} catch {}
 	}
 
 	async handleIconFiles(event) {
@@ -2013,268 +2046,4 @@ class MapViewerApp {
 				this.log(`Tệp '${file.name}': Đang đọc ${count} NPC...`);
 				let localAddCount = 0;
 				for (let i = 0; i < count; i++) {
-					if (reader.eof) { this.log(`LỖI: Tệp '${file.name}' kết thúc sớm. Đã đọc ${i}/${count} NPC.`); break; }
-					const npc = { name: reader.readUTF(), menuTitle: reader.readUTF(), npcId: reader.readByte(), iconMiniMap: reader.readByte(), x: reader.readShort() + 12, y: reader.readShort(), type1: reader.readByte(), type2: reader.readByte(), direction: reader.readByte(), iconInteract: reader.readByte(), dialog: reader.readUTF(), flag1: reader.readByte(), flag2: reader.readByte() };
-					this.mapData.npcs.push(npc); localAddCount++;
-				}
-				this.log(`Đã tải thành công ${localAddCount} NPC từ tệp '${file.name}'.`);
-			} catch (e) { this.log(`LỖI: Không thể phân tích tệp NPC ${file.name}.`); console.error(`Failed to parse NPC file ${file.name}:`, e); }
-		}
-		this.log(`Hoàn tất. Tổng số NPC hiện tại: ${this.mapData.npcs.length}. Đang kết xuất lại.`);
-		this.render();
-	}
-
-	handleAddNpc() {
-		if (!this.mapData) { this.log("LỖI: Không thể thêm NPC khi chưa có bản đồ nào được tải."); return; }
-		const viewCenterX = (this.canvas.width / 2 - this.panX) / this.scale;
-		const viewCenterY = (this.canvas.height / 2 - this.panY) / this.scale;
-		const newNpc = { name: "New NPC", menuTitle: "Interact", dialog: "Hello!", npcId: this.mapData.npcs.length > 0 ? Math.max(...this.mapData.npcs.map(n => n.npcId)) + 1 : 1, x: Math.round(viewCenterX), y: Math.round(viewCenterY), iconMiniMap: 0, iconInteract: 0, type1: 0, type2: 0, direction: 2, flag1: 1, flag2: 0 };
-		this.mapData.npcs.push(newNpc);
-		this.selectedNpc = newNpc;
-		this.log(`Đã thêm NPC mới '${newNpc.name}' tại (${newNpc.x}, ${newNpc.y}).`);
-		this.showNpcEditor(newNpc, true);
-		this.render();
-	}
-
-	showNpcEditor(npc, isNew = false) {
-		this.currentEditingNpc = npc; this.isNewNpc = isNew; this.npcEditorTitle.textContent = isNew ? "Add New NPC" : `Edit NPC: ${npc.name}`;
-		for (const key in npc) { const inputEl = this.npcEditorForm.elements.namedItem(key); if (inputEl) inputEl.value = npc[key]; }
-		this.updateNpcEditorIconPreview('npc-iconMiniMap', 'minimap-icon-preview', 3000);
-		this.updateNpcEditorIconPreview('npc-iconInteract', 'interact-icon-preview', 3500);
-		this.npcEditorModal.style.display = 'block';
-	}
-
-	hideNpcEditor(wasCancelled = false) {
-		if (wasCancelled && this.isNewNpc && this.currentEditingNpc && this.mapData) {
-			const index = this.mapData.npcs.indexOf(this.currentEditingNpc);
-			if (index > -1) { this.mapData.npcs.splice(index, 1); }
-			this.log("Thao tác thêm NPC mới đã bị hủy.");
-			if (this.selectedNpc === this.currentEditingNpc) { this.selectedNpc = null; }
-			this.render();
-		}
-		this.npcEditorModal.style.display = 'none';
-		this.currentEditingNpc = null; this.isNewNpc = false;
-	}
-
-	handleNpcEditorSave() {
-		if (!this.currentEditingNpc) return;
-		const formData = new FormData(this.npcEditorForm);
-		for (const key of Object.keys(this.currentEditingNpc)) {
-			const value = formData.get(key);
-			if (value !== null) { const isNumeric = !['name', 'menuTitle', 'dialog'].includes(key); this.currentEditingNpc[key] = isNumeric ? Number(value) : value; }
-		}
-		this.log(`Đã cập nhật thông tin cho NPC '${this.currentEditingNpc.name}'.`);
-		this.hideNpcEditor(false);
-		this.render();
-	}
-
-	updateNpcEditorIconPreview(inputId, previewId, idBase) {
-		const inputElement = document.getElementById(inputId);
-		const previewElement = document.getElementById(previewId);
-		if (!inputElement || !previewElement) return;
-		previewElement.innerHTML = '';
-		const value = parseInt(inputElement.value, 10);
-		if (isNaN(value)) { previewElement.textContent = '?'; return; }
-		const finalIconId = idBase + value;
-		const iconImage = this.effectIcons.get(finalIconId);
-		if (iconImage && iconImage.complete) {
-			const r = this.getIconFrameRect(iconImage);
-			const c = document.createElement('canvas');
-			c.width = r.sw; c.height = r.sh;
-			const cctx = c.getContext('2d'); cctx.imageSmoothingEnabled = false;
-			cctx.drawImage(iconImage, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
-			previewElement.appendChild(c);
-		}
-		else { previewElement.textContent = '?'; }
-	}
-
-	showNpcDialog(npc) {
-		this.hideNpcDialog();
-		const interactionIconId = 3500 + Number(npc.iconInteract);
-		const interactionIconImg = this.effectIcons.get(interactionIconId);
-		const container = document.createElement('div');
-		container.id = 'npc-interaction-dialog';
-		container.className = 'npc-dialog-container';
-		const dialogBox = document.createElement('div');
-		dialogBox.className = 'npc-dialog-box';
-		const header = document.createElement('div'); header.className = 'npc-dialog-header'; const title = document.createElement('h3'); title.textContent = npc.name; header.appendChild(title);
-		const content = document.createElement('div'); content.className = 'npc-dialog-content'; const text = document.createElement('p'); text.textContent = npc.dialog; content.appendChild(text);
-		const actions = document.createElement('div'); actions.className = 'npc-dialog-actions';
-		if (npc.menuTitle && String(npc.menuTitle).trim() !== '') { const mainButton = document.createElement('button'); mainButton.textContent = npc.menuTitle; actions.appendChild(mainButton); }
-		const closeButton = document.createElement('button'); closeButton.textContent = 'Đóng'; closeButton.onclick = () => this.hideNpcDialog(); actions.appendChild(closeButton);
-		dialogBox.appendChild(header); dialogBox.appendChild(content); dialogBox.appendChild(actions);
-		const portraitPanel = document.createElement('div'); portraitPanel.className = 'npc-dialog-portrait';
-		if (interactionIconImg && interactionIconImg.complete) {
-			const r = this.getIconFrameRect(interactionIconImg);
-			const scaleFactor = 2.5;
-			const canvas = document.createElement('canvas');
-			canvas.width = r.sw * scaleFactor; canvas.height = r.sh * scaleFactor;
-			const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
-			ctx.drawImage(interactionIconImg, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
-			portraitPanel.appendChild(canvas);
-		} else { const placeholder = document.createElement('div'); placeholder.textContent = `? ${interactionIconId}`; placeholder.className = 'icon-placeholder'; portraitPanel.appendChild(placeholder); }
-		container.appendChild(dialogBox); container.appendChild(portraitPanel); this.canvasContainer.appendChild(container);
-		const screenX = npc.x * this.scale + this.panX; const screenY = npc.y * this.scale + this.panY; const containerRect = this.canvasContainer.getBoundingClientRect(); const dialogRect = container.getBoundingClientRect();
-		let finalX = screenX - (dialogRect.width / 2); let finalY = screenY - dialogRect.height - 20;
-		if (finalX < 10) finalX = 10; if (finalX + dialogRect.width > containerRect.width - 10) finalX = containerRect.width - dialogRect.width - 10; if (finalY < 10) finalY = 10; if (finalY + dialogRect.height > containerRect.height - 10) finalY = containerRect.height - dialogRect.height - 10;
-		container.style.left = `${finalX}px`; container.style.top = `${finalY}px`;
-	}
-
-	hideNpcDialog() {
-		const dialog = document.getElementById('npc-interaction-dialog');
-		if (dialog) dialog.remove();
-	}
-
-	drawNpc(npc) {
-		const finalIconId = 3000 + (npc.iconMiniMap | 0);
-		const icon = this.effectIcons.get(finalIconId);
-		if (icon && icon.complete) {
-			const r = this.getIconFrameRect(icon);
-			this.ctx.drawImage(icon, r.sx, r.sy, r.sw, r.sh, npc.x, npc.y, r.sw, r.sh);
-			if (npc.name) {
-				this.ctx.fillStyle = '#ffffff';
-				this.ctx.font = `bold ${12 / this.scale}px sans-serif`;
-				this.ctx.textAlign = 'center';
-				this.ctx.strokeStyle = 'black';
-				this.ctx.lineWidth = 2 / this.scale;
-				const textX = npc.x + r.sw / 2;
-				const textY = npc.y - 5 / this.scale;
-				this.ctx.strokeText(npc.name, textX, textY);
-				this.ctx.fillText(npc.name, textX, textY);
-			}
-			if (this.isNpcEditingMode && npc === this.selectedNpc) { this.ctx.strokeStyle = '#ffff00'; this.ctx.lineWidth = 2 / this.scale; this.ctx.strokeRect(npc.x, npc.y, r.sw, r.sh); }
-		} else {
-			this.ctx.fillStyle = 'rgba(148, 0, 211, 0.5)'; this.ctx.strokeStyle = '#9400D3'; this.ctx.lineWidth = 1 / this.scale; this.ctx.fillRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE); this.ctx.strokeRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE);
-		}
-	}
-
-	handleSaveNpcs() {
-		if (!this.mapData || this.mapData.npcs.length === 0) { this.log("CẢNH BÁO: Không có NPC nào để lưu."); return; }
-		this.log(`Bắt đầu lưu ${this.mapData.npcs.length} NPC...`);
-		try {
-			const writer = new BinaryWriter(); writer.writeByte(this.mapData.npcs.length);
-			for (const npc of this.mapData.npcs) {
-				writer.writeUTF(npc.name);
-				writer.writeUTF(npc.menuTitle);
-				writer.writeByte(npc.npcId);
-				writer.writeByte(npc.iconMiniMap);
-				writer.writeShort((npc.x | 0) - 12);
-				writer.writeShort(npc.y | 0);
-				writer.writeByte(npc.type1);
-				writer.writeByte(npc.type2);
-				writer.writeByte(npc.direction);
-				writer.writeByte(npc.iconInteract);
-				writer.writeUTF(npc.dialog);
-				writer.writeByte(npc.flag1);
-				writer.writeByte(npc.flag2);
-			}
-			const finalBuffer = writer.getBuffer();
-			const blob = new Blob([finalBuffer], { type: 'application/octet-stream' });
-			const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `npc_data_${this.mapData.tilesetId}.dat`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-			this.log(`Hoàn tất! Tệp NPC '${a.download}' đã được tạo.`);
-		} catch (error) { this.log(`LỖI nghiêm trọng trong quá trình lưu NPC: ${error}`); console.error("Failed to save NPC file:", error); }
-	}
-
-			computeNpcVerticalSlices(img) {
-			try {
-				const w = img?.width || TILE_SIZE;
-				const h = img?.height || TILE_SIZE;
-				const ratio = h / Math.max(1, w);
-				// Detect midline seam (2-frame) for ambiguous tall sprites (e.g., 22x88, 25x88)
-				let frames = 1;
-				const r = ratio;
-				let forceTwo = false;
-				if (r >= 3.0 && r <= 4.2) {
-					try {
-						const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
-						const data = ctx.getImageData(0, 0, w, h).data;
-						const stripeAvg = (cy) => { const band = Math.max(1, Math.round(h * 0.04)); let sum = 0, cnt = 0; const y0 = Math.max(0, cy - band), y1 = Math.min(h - 1, cy + band); for (let y = y0; y <= y1; y++) { let o = y * w * 4 + 3; let s = 0; for (let x = 0; x < w; x++) { s += data[o]; o += 4; } sum += s / (255 * w); cnt++; } return cnt > 0 ? sum / cnt : 1; };
-						const mid = Math.floor(h / 2), q1 = Math.floor(h / 4), q3 = Math.floor((3 * h) / 4);
-						const m = stripeAvg(mid), a = stripeAvg(q1), b = stripeAvg(q3);
-						if (m <= Math.min(a, b) - 0.06) forceTwo = true;
-					} catch {}
-				}
-				if (forceTwo) {
-					frames = 2;
-				} else {
-					// Prefer divisibility; special-case small-width sprites
-					const isSmall = w <= 24;
-					const near = (x, y, tol) => Math.abs(x - y) <= tol;
-					if ((h % 4 === 0 || near(r, 4, 0.05)) && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
-					else if ((h % 2 === 0 || near(r, 2, 0.05)) && r >= 1.45) frames = 2;
-					else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
-					else if (r >= 1.45) frames = 2;
-					else frames = 1;
-				}
-				const slices = [];
-				if (frames === 1) { slices.push({ sy: 0, sh: h }); return slices; }
-				const per = Math.floor(h / frames);
-				const rem = h - per * frames;
-				let y0 = 0;
-				for (let i = 0; i < frames; i++) {
-					const extra = i < rem ? 1 : 0;
-					const sh = per + extra;
-					slices.push({ sy: y0, sh: Math.max(1, sh) });
-					y0 += sh;
-				}
-				return slices;
-			} catch { return [{ sy: 0, sh: img?.height || TILE_SIZE }]; }
-		}
-
-		getIconFrameRect(img) {
-			const w = img?.width || TILE_SIZE; const h = img?.height || TILE_SIZE;
-			let cache = this.npcFrameCache.get(img);
-			if (!cache || cache.w !== w || cache.h !== h || !Array.isArray(cache.slices)) {
-				const slices = this.computeNpcVerticalSlices(img);
-				cache = { w, h, frames: slices.length, slices, start: (Date.now() % (this.animationTickMs * 1000)) };
-				this.npcFrameCache.set(img, cache);
-			}
-			const frames = cache.frames; const slices = cache.slices;
-			const elapsed = Date.now() - (cache.start || 0);
-			const idx = frames > 1 ? Math.floor(elapsed / this.animationTickMs) % frames : 0;
-			const sl = slices[idx] || { sy: 0, sh: h };
-			return { sx: 0, sy: sl.sy, sw: w, sh: sl.sh };
-		}
-
-	startAnimationLoop() {
-		if (this.animationTimer) clearInterval(this.animationTimer);
-		this.animationTimer = setInterval(() => { if (this.mapData) this.render(); }, this.animationTickMs);
-	}
-
-	async handleTilesetWaterFile(event) {
-		const input = event.target;
-		if (!input.files || input.files.length === 0) return;
-		const file = input.files[0];
-		const img = new Image();
-		img.onload = () => { this.tilesetWaterImage = img; this.log(`Đã nạp tilewater: ${file.name}`); };
-		img.onerror = () => { this.log(`LỖI: Không thể nạp tilewater '${file.name}'.`); this.tilesetWaterImage = null; };
-		img.src = URL.createObjectURL(file);
-	}
-
-	async handleTilesetSmallFile(event) {
-		const input = event.target;
-		if (!input.files || input.files.length === 0) return;
-		const file = input.files[0];
-		const img = new Image();
-		img.onload = () => { this.tilesetSmallImage = img; this.log(`Đã nạp tile_small: ${file.name}`); };
-		img.onerror = () => { this.log(`LỖI: Không thể nạp tile_small '${file.name}'.`); this.tilesetSmallImage = null; };
-		img.src = URL.createObjectURL(file);
-	}
-
-	exportTilesetExtras() {
-		if (!this.mapData) { this.log('Chưa có map để xuất water/small.'); return; }
-		const id = this.mapData.tilesetId | 0;
-		const downloadImg = (img, fname) => {
-			try { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0); c.toBlob((blob) => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }); } catch {}
-		};
-		let any = false;
-		if (this.tilesetWaterImage) { any = true; downloadImg(this.tilesetWaterImage, `tilewater${id}.png`); downloadImg(this.tilesetWaterImage, `102_${id}.png`); }
-		if (this.tilesetSmallImage) { any = true; downloadImg(this.tilesetSmallImage, `tile_small${id}.png`); downloadImg(this.tilesetSmallImage, `101_${id}.png`); }
-		if (!any) this.log('Chưa nạp ảnh water/small để xuất.'); else this.log('Đã xuất water/small theo ID hiện tại.');
-	}
-}
-
-new MapViewerApp();
-	</script>
-</body>
-</html>
+					if (reader.eof) { this.log(`LỖI: Tệp '${file.name}' kết thúc sớm. Đã đọc ${i}/${count} NPC.`
