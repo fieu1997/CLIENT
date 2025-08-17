@@ -758,11 +758,20 @@ class MapViewerApp {
 					</div>
 					<div class="grid-2" style="gap:8px; align-items:end;">
 						<div>
-							<label for="fp-tileset-id-only">Thiết lập tilesetId (byte thứ 3 của map)</label>
+							<label for="fp-tileset-id-only">Thiết lập tilesetId (byte thứ 3 của tileBlob)</label>
 							<input type="number" id="fp-tileset-id-only" min="0" step="1" placeholder="VD: 1" />
 						</div>
 						<div class="inline" style="gap:6px;">
 							<button id="fp-apply-tileset-id-only" class="action-button">Cập nhật ID map</button>
+						</div>
+					</div>
+					<div class="grid-2" style="gap:8px; align-items:end;">
+						<div>
+							<label for="fp-header-b2">Header byte #2 (cột thứ 2 đầu file)</label>
+							<input type="number" id="fp-header-b2" min="0" max="255" step="1" placeholder="VD: 1" />
+						</div>
+						<div class="inline" style="gap:6px;">
+							<button id="fp-apply-header-b2" class="action-button">Cập nhật Header</button>
 						</div>
 					</div>
 					<div class="inline" style="gap: 8px;">
@@ -775,6 +784,12 @@ class MapViewerApp {
 					const idEl = document.getElementById('fp-tileset-id-only');
 					const id = Math.max(0, parseInt(idEl?.value || '0', 10) || 0);
 					this.applyTilesetIdOnly(id);
+				});
+				document.getElementById('fp-apply-header-b2')?.addEventListener('click', () => {
+					const b2El = document.getElementById('fp-header-b2');
+					const v = Math.max(0, Math.min(255, parseInt(b2El?.value || '0', 10) || 0));
+					this.headerByte2 = v;
+					this.log(`Đã cập nhật header byte #2 = ${v}. Sẽ lưu vào hai byte đầu file.`);
 				});
 				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
 				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
@@ -1034,13 +1049,15 @@ class MapViewerApp {
 			this.mapData = new MapData();
 			const reader = new BinaryReader(buffer);
 			this.log("Đang phân tích dữ liệu file map...");
+			// Đọc 2 byte đầu để hỗ trợ chỉnh header
+			try { const dv = new DataView(buffer); this.headerByte1 = dv.getUint8(0); this.headerByte2 = dv.getUint8(1); } catch {}
 			reader.seek(2);
 			this.mapData.mapName = reader.readUTF();
 			this.mapData.mapVersion = reader.readShort();
 			this.mapData.width = reader.readByte();
 			this.mapData.height = reader.readByte();
 			this.mapData.tilesetId = reader.readByte();
-			this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
+			this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Header[0..1]=(${this.headerByte1}, ${this.headerByte2})\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
 			// Nếu đã có thư viện tileset, tự áp dụng theo ID map
 			if (this.tilesetLibrary && this.tilesetLibrary.main && this.tilesetLibrary.main.size > 0) {
 				this.applyTilesetById(this.mapData.tilesetId);
@@ -1287,7 +1304,9 @@ class MapViewerApp {
 			for (const [keyBytes, valBytes] of pairs) { overlayWriter.writeByte(keyBytes.length); overlayWriter.writeBytes(keyBytes); overlayWriter.writeByte(valBytes.length); overlayWriter.writeBytes(valBytes); }
 			const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
 			const out = new BinaryWriter();
-			out.writeShort(0);
+			// Ghi 2 byte header tuỳ biến
+			out.writeByte(this.headerByte1 | 0);
+			out.writeByte(this.headerByte2 | 0);
 			out.writeUTF(this.mapData.mapName || "");
 			out.writeShort(tileBlob.length);
 			out.writeBytes(tileBlob);
