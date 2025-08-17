@@ -876,11 +876,13 @@ class MapViewerApp {
 						<input id="fp-eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
 						<button id="fp-update-eff-raw-button" class="action-button" style="margin-top:6px;">Cập nhật Raw</button>
 					</div>
+					<div id="fp-eff-params" style="margin-top:8px;"></div>
 				`;
 				document.getElementById('fp-add-eff-button')?.addEventListener('click', this.handleAddEffAtCenter.bind(this));
 				document.getElementById('fp-delete-eff-button')?.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
 				document.getElementById('fp-update-eff-id-button')?.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
 				document.getElementById('fp-update-eff-raw-button')?.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
+				this.renderEffParamEditor();
 				break;
 			case 'vgo':
 				if (title) title.textContent = 'VGO';
@@ -1406,8 +1408,8 @@ class MapViewerApp {
 		}
 		if (this.isEffEditingMode && !this.isCtrlDown) {
 			const effHit = this.hitTestEff(mx, my);
-			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
-			else { this.selectedEff = null; this.render(); }
+			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.renderEffParamEditor(); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
+			else { this.selectedEff = null; this.renderEffParamEditor(); this.render(); }
 			return;
 		}
 		if (this.isIconEditingMode && !this.isCtrlDown) {
@@ -1434,7 +1436,7 @@ class MapViewerApp {
 		const sy = event.clientY - rect.top;
 		const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
 		if (this.isTileEditingMode && this.isPainting && !this.isCtrlDown) { this.paintTileAt(mx, my); return; }
-		if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEff.x = Math.round(mx); this.selectedEff.y = Math.round(my); const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE)); this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty); this.render(); return; }
+		if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEff.x = Math.round(mx); this.selectedEff.y = Math.round(my); const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE)); this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty); this.renderEffParamEditor(); this.render(); return; }
 		if (this.isVgoEditingMode && this.selectedVgo && this.isDraggingVgo && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedVgo.x = Math.round(mx); this.selectedVgo.y = Math.round(my); this.render(); return; }
 		if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEffectObject.x = Math.round(mx); this.selectedEffectObject.y = Math.round(my); this.render(); return; }
 		if (this.isNpcEditingMode && this.selectedNpc && this.isDraggingNpc && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedNpc.x = Math.round(mx); this.selectedNpc.y = Math.round(my); this.render(); return; }
@@ -1708,7 +1710,38 @@ class MapViewerApp {
 	}
 
 	buildEffRawFromObj(eff) { const id = Number.isFinite(eff.id) ? eff.id : 0; const tx = Math.max(0, Math.round(eff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(eff.y / TILE_SIZE)); return `0;${id};${tx};${ty};0;0;0;0`; }
-	updateEffRawWithXY(raw, tx, ty) { try { const parts = String(raw ?? '').split(';'); while (parts.length < 4) parts.push('0'); parts[2] = String(tx); parts[3] = String(ty); return parts.join(';'); } catch { return raw; } }
+	updateEffRawWithXY(raw, tx, ty) { try { const parts = String(raw ?? '').split(';'); while (parts.length < 8) parts.push('0'); parts[2] = String(tx); parts[3] = String(ty); return parts.join(';'); } catch { return raw; } }
+
+	renderEffParamEditor() {
+		const container = document.getElementById('fp-eff-params');
+		if (!container) return;
+		container.innerHTML = '';
+		const eff = this.selectedEff;
+		if (!eff) { container.innerHTML = '<div class="small-muted">Chưa chọn eff nào. Chọn eff trên bản đồ để sửa.</div>'; return; }
+		const labels = ['type','id','tileX','tileY','p4','p5','p6','p7'];
+		const parts = String(eff.raw ?? '').split(';');
+		while (parts.length < 8) parts.push('0');
+		const grid = document.createElement('div');
+		grid.className = 'grid-2';
+		grid.style.gap = '8px';
+		labels.forEach((name, idx) => {
+			const wrap = document.createElement('div');
+			const lab = document.createElement('label'); lab.textContent = name; wrap.appendChild(lab);
+			const input = document.createElement('input'); input.type = 'number'; input.step = '1'; input.value = parts[idx] ?? '0';
+			input.addEventListener('input', () => {
+				parts[idx] = String(parseInt(input.value || '0', 10) || 0);
+				eff.raw = parts.join(';');
+				const newId = parseInt(parts[1] || '0', 10) || 0;
+				const tx = parseInt(parts[2] || '0', 10) || 0;
+				const ty = parseInt(parts[3] || '0', 10) || 0;
+				eff.id = newId; eff.name = `Eff ID: ${newId}`; eff.text = `Eff: ${newId}`; eff.x = tx * TILE_SIZE; eff.y = ty * TILE_SIZE;
+				const idBox = document.getElementById('fp-eff-selected-id') || document.getElementById('eff-selected-id'); if (idBox) idBox.value = String(newId);
+				this.render();
+			});
+			wrap.appendChild(input); grid.appendChild(wrap);
+		});
+		container.appendChild(grid);
+	}
 
 	handleAddIconAtCenter() {
 		if (!this.mapData) return;
