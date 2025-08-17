@@ -179,6 +179,8 @@
 		.floating-panel.minimized .floating-content { display: none; }
 		.floating-content::-webkit-scrollbar { width: 8px; height: 8px; }
 		.floating-content::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+		/* Hide sidebar to simplify UI */
+		.sidebar { display: none; }
 	</style>
 </head>
 <body>
@@ -527,6 +529,7 @@ class MapViewerApp {
 	mapData = null;
 	tilesetImage = null;
 	effectIcons = new Map();
+	originalMapFileName = '';
 
 	scale = 1.0;
 	panX = 0;
@@ -1003,6 +1006,7 @@ class MapViewerApp {
 		const input = event.target;
 		if (!input.files || input.files.length === 0) return;
 		const file = input.files[0];
+		this.originalMapFileName = file.name;
 		this.log(`Bắt đầu tải file map: ${file.name}`);
 		try {
 			const buffer = await file.arrayBuffer();
@@ -1262,7 +1266,8 @@ class MapViewerApp {
 			const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
 			const a = document.createElement('a');
 			a.href = URL.createObjectURL(blob);
-			a.download = `${this.mapData.tilesetId || 'map'}.bin`;
+			const downloadName = this.originalMapFileName || `${this.mapData.tilesetId || 'map'}.bin`;
+			a.download = downloadName;
 			document.body.appendChild(a);
 			a.click();
 			document.body.removeChild(a);
