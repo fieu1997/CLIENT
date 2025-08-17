@@ -534,6 +534,8 @@ class MapViewerApp {
 	
 	mapData = null;
 	tilesetImage = null;
+	tilesetWaterImage = null;
+	tilesetSmallImage = null;
 	tilesetLibrary = { main: new Map(), water: new Map(), small: new Map() };
 	effectIcons = new Map();
 	npcFrameCache = new WeakMap();
@@ -756,6 +758,16 @@ class MapViewerApp {
 						<label for="fp-tileset-input">Ảnh Tileset (.png)</label>
 						<input type="file" id="fp-tileset-input" accept=".png">
 					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-tileset-water-input">Ảnh Tile Water (.png, tuỳ chọn)</label>
+							<input type="file" id="fp-tileset-water-input" accept=".png">
+						</div>
+						<div>
+							<label for="fp-tileset-small-input">Ảnh Tile Small (.png, tuỳ chọn)</label>
+							<input type="file" id="fp-tileset-small-input" accept=".png">
+						</div>
+					</div>
 					<div class="grid-2" style="gap:8px; align-items:end;">
 						<div>
 							<label for="fp-tileset-id-only">Thiết lập tilesetId (byte thứ 3 của tileBlob)</label>
@@ -776,10 +788,13 @@ class MapViewerApp {
 					</div>
 					<div class="inline" style="gap: 8px;">
 						<button id="fp-save-map-button" class="action-button" ${this.mapData ? '' : 'disabled'}>Lưu Dữ Liệu (CMD 12)</button>
+						<button id="fp-export-tileset-extras" class="action-button" style="background-color:#5b9bd5;">Xuất water/small theo ID</button>
 					</div>
 				`;
 				document.getElementById('fp-map-input')?.addEventListener('change', this.handleMapFile.bind(this));
 				document.getElementById('fp-tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+				document.getElementById('fp-tileset-water-input')?.addEventListener('change', this.handleTilesetWaterFile.bind(this));
+				document.getElementById('fp-tileset-small-input')?.addEventListener('change', this.handleTilesetSmallFile.bind(this));
 				document.getElementById('fp-apply-tileset-id-only')?.addEventListener('click', () => {
 					const idEl = document.getElementById('fp-tileset-id-only');
 					const id = Math.max(0, parseInt(idEl?.value || '0', 10) || 0);
@@ -791,6 +806,7 @@ class MapViewerApp {
 					this.headerByte2 = v;
 					this.log(`Đã cập nhật header byte #2 = ${v}. Sẽ lưu vào hai byte đầu file.`);
 				});
+				document.getElementById('fp-export-tileset-extras')?.addEventListener('click', this.exportTilesetExtras.bind(this));
 				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
 				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
 				break;
@@ -2223,6 +2239,38 @@ class MapViewerApp {
 	startAnimationLoop() {
 		if (this.animationTimer) clearInterval(this.animationTimer);
 		this.animationTimer = setInterval(() => { if (this.mapData) this.render(); }, this.animationTickMs);
+	}
+
+	async handleTilesetWaterFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		const img = new Image();
+		img.onload = () => { this.tilesetWaterImage = img; this.log(`Đã nạp tilewater: ${file.name}`); };
+		img.onerror = () => { this.log(`LỖI: Không thể nạp tilewater '${file.name}'.`); this.tilesetWaterImage = null; };
+		img.src = URL.createObjectURL(file);
+	}
+
+	async handleTilesetSmallFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		const img = new Image();
+		img.onload = () => { this.tilesetSmallImage = img; this.log(`Đã nạp tile_small: ${file.name}`); };
+		img.onerror = () => { this.log(`LỖI: Không thể nạp tile_small '${file.name}'.`); this.tilesetSmallImage = null; };
+		img.src = URL.createObjectURL(file);
+	}
+
+	exportTilesetExtras() {
+		if (!this.mapData) { this.log('Chưa có map để xuất water/small.'); return; }
+		const id = this.mapData.tilesetId | 0;
+		const downloadImg = (img, fname) => {
+			try { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0); c.toBlob((blob) => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }); } catch {}
+		};
+		let any = false;
+		if (this.tilesetWaterImage) { any = true; downloadImg(this.tilesetWaterImage, `tilewater${id}.png`); downloadImg(this.tilesetWaterImage, `102_${id}.png`); }
+		if (this.tilesetSmallImage) { any = true; downloadImg(this.tilesetSmallImage, `tile_small${id}.png`); downloadImg(this.tilesetSmallImage, `101_${id}.png`); }
+		if (!any) this.log('Chưa nạp ảnh water/small để xuất.'); else this.log('Đã xuất water/small theo ID hiện tại.');
 	}
 }
 
