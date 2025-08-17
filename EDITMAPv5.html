@@ -198,7 +198,13 @@
 			<button class="mode-button" data-mode="vgo">VGO</button>
 			<button class="mode-button" data-mode="npc">NPC</button>
 		</div>
-		<div style="margin-left:auto; display:flex; gap:8px;">
+		<div class="toolbar-group" style="margin-left:auto; align-items:center;">
+			<label class="inline" style="gap:6px; align-items:center;">
+				<input type="checkbox" id="toggle-overlays" checked>
+				<span>Hiện icon/Eff/NPC</span>
+			</label>
+		</div>
+		<div style="display:flex; gap:8px;">
 			<button id="top-undo-btn" class="mode-button" disabled>↶ Hoàn tác</button>
 		</div>
 	</div>
@@ -530,6 +536,7 @@ class MapViewerApp {
 	tilesetImage = null;
 	effectIcons = new Map();
 	originalMapFileName = '';
+	showOverlays = true;
 
 	scale = 1.0;
 	panX = 0;
@@ -654,6 +661,8 @@ class MapViewerApp {
 		this.canvas.addEventListener('drop', this.handleDrop.bind(this));
 		this.canvas.addEventListener('dragover', this.handleDragOver.bind(this));
 		this.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
+		const toggle = document.getElementById('toggle-overlays');
+		if (toggle) toggle.addEventListener('change', (e) => { this.showOverlays = !!e.target.checked; this.render(); });
 		window.addEventListener('resize', this.render.bind(this));
 		// Ctrl tracking
 		window.addEventListener('keydown', (e) => { if (e.key === 'Control') this.isCtrlDown = true; });
@@ -1521,16 +1530,17 @@ class MapViewerApp {
 		}
 	}
 
-	drawObjects() {
+			drawObjects() {
 		if (!this.mapData) return;
 		const allObjects = [ ...this.mapData.effectObjects, ...this.mapData.vgos, ...this.mapData.effData, ...this.mapData.npcs ].sort((a,b) => a.y - b.y);
 		allObjects.forEach(obj => {
+			if (!this.showOverlays && (('templateId' in obj) || ('raw' in obj) || ('npcId' in obj))) return;
 			if ('templateId' in obj) this.drawEffect(obj);
 			else if ('mapGoId' in obj) this.drawVgo(obj);
 			else if ('raw' in obj) this.drawEff(obj);
 			else if ('npcId' in obj) this.drawNpc(obj);
 		});
-		if (this.isEffEditingMode && this.selectedEff) { this.highlightSelection(this.selectedEff.x, this.selectedEff.y, TILE_SIZE, TILE_SIZE); }
+		if (this.isEffEditingMode && this.selectedEff && this.showOverlays) { this.highlightSelection(this.selectedEff.x, this.selectedEff.y, TILE_SIZE, TILE_SIZE); }
 	}
 
 	highlightSelection(x, y, w, h) {
