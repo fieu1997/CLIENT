@@ -2121,34 +2121,45 @@ class MapViewerApp {
 				if (frames === 1) return [{ sy: 0, sh: h }];
 				const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
 				const data = ctx.getImageData(0, 0, w, h).data;
-				const alphaRow = new Float32Array(h);
-				for (let y = 0; y < h; y++) { let sum = 0; let o = y * w * 4 + 3; for (let x = 0; x < w; x++) { sum += data[o]; o += 4; } alphaRow[y] = sum / (255 * w); }
+				const solidRow = new Float32Array(h);
+				const A = 24;
+				for (let y = 0; y < h; y++) { let cnt = 0; let o = y * w * 4 + 3; for (let x = 0; x < w; x++) { if (data[o] >= A) cnt++; o += 4; } solidRow[y] = cnt / w; }
+				const k = Math.max(1, Math.round(h * 0.02));
+				const smoothed = new Float32Array(h);
+				for (let y = 0; y < h; y++) { let sum = 0, num = 0; const s = Math.max(0, y - k), e = Math.min(h - 1, y + k); for (let t = s; t <= e; t++) { sum += solidRow[t]; num++; } smoothed[y] = sum / Math.max(1, num); }
 				const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-				const window = Math.max(1, Math.round(h * 0.12));
-				const targets = frames === 2 ? [h / 2] : [h / 4, h / 2, (3 * h) / 4];
-				const seams = [];
-				for (const t of targets) {
-					let bestY = Math.round(t); let bestScore = Number.POSITIVE_INFINITY;
-					const s = clamp(Math.round(t) - window, 1, h - 2);
-					const e = clamp(Math.round(t) + window, 1, h - 2);
-					for (let y = s; y <= e; y++) {
-						// Ưu tiên đường cắt ở vùng trong suốt (alpha thấp) và ở giữa hai vùng đặc (biên gradient nhỏ)
-						const prev = Math.max(0, y - 1), next = Math.min(h - 1, y + 1);
-						const grad = Math.abs(alphaRow[next] - alphaRow[prev]);
-						const score = alphaRow[y] + grad * 0.25;
-						if (score < bestScore) { bestScore = score; bestY = y; }
-					}
-					seams.push(bestY);
-				}
-				seams.sort((a,b)=>a-b);
-				for (let i=1;i<seams.length;i++) if (seams[i] <= seams[i-1]) seams[i] = Math.min(h-2, seams[i-1]+1);
+				const findSeamBetween = (lo, hi) => {
+					const L = clamp(Math.floor(lo), 1, h - 2);
+					const R = clamp(Math.floor(hi), 1, h - 2);
+					let yMin = Math.floor((L + R) / 2); let best = Number.POSITIVE_INFINITY;
+					for (let y = L; y <= R; y++) { const prev = Math.max(0, y - 1), next = Math.min(h - 1, y + 1); const grad = Math.abs(smoothed[next] - smoothed[prev]); const score = smoothed[y] + grad * 0.3; if (score < best) { best = score; yMin = y; } }
+					const solidThr = Math.max(0.03, Math.min(0.15, best * 0.8));
+					let top = yMin; while (top > L && smoothed[top] <= solidThr) top--;
+					let bot = yMin; while (bot < R && smoothed[bot] <= solidThr) bot++;
+					let lastTop = top; while (lastTop >= L && solidRow[lastTop] <= solidThr) lastTop--;
+					let firstBot = bot; while (firstBot <= R && solidRow[firstBot] <= solidThr) firstBot++;
+					let seam = Math.floor((Math.max(L, lastTop) + Math.min(R, firstBot)) / 2);
+					seam = clamp(seam, L, R - 1);
+					return seam;
+				};
 				const slices = [];
-				let prev = 0;
-				for (const sY of seams) { const sh = Math.max(1, sY - prev); slices.push({ sy: prev, sh }); prev = sY + 1; }
-				slices.push({ sy: prev, sh: Math.max(1, h - prev) });
-				if (slices.some(s => s.sh < Math.max(1, Math.floor(h / (frames * 4))))) {
-					slices.length = 0; const per = Math.floor(h / frames); const rem = h - per * frames; let y0 = 0; for (let i=0;i<frames;i++){ const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; }
+				if (frames === 2) {
+					const margin = Math.round(h * 0.12);
+					const s = findSeamBetween(margin, h - margin);
+					slices.push({ sy: 0, sh: Math.max(1, s) });
+					slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
+				} else {
+					const margin = Math.round(h * 0.08);
+					const mid = findSeamBetween(margin, h - margin);
+					const top = findSeamBetween(margin, mid - Math.max(1, Math.floor(margin / 2)));
+					const bot = findSeamBetween(mid + Math.max(1, Math.floor(margin / 2)), h - margin);
+					slices.push({ sy: 0, sh: Math.max(1, top) });
+					slices.push({ sy: top + 1, sh: Math.max(1, mid - (top + 1)) });
+					slices.push({ sy: mid + 1, sh: Math.max(1, bot - (mid + 1)) });
+					slices.push({ sy: bot + 1, sh: Math.max(1, h - (bot + 1)) });
 				}
+				const minSh = Math.max(1, Math.floor(h / (frames * 4)));
+				if (slices.length !== frames || slices.some(s => s.sh < minSh)) { slices.length = 0; const per = Math.floor(h / frames); const rem = h - per * frames; let y0 = 0; for (let i = 0; i < frames; i++) { const extra = i < rem ? 1 : 0; const sh = per + extra; slices.push({ sy: y0, sh }); y0 += sh; } }
 				return slices;
 			} catch { return [{ sy: 0, sh: img?.height || TILE_SIZE }]; }
 		}
