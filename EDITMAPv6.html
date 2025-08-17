@@ -2117,12 +2117,13 @@ class MapViewerApp {
 				const w = img?.width || TILE_SIZE;
 				const h = img?.height || TILE_SIZE;
 				const ratio = h / Math.max(1, w);
-				// Stable detection: prefer divisibility; then ratio thresholds for vertical sprites
+				// Stable detection: prefer divisibility; special-case small-width sprites
 				let frames = 1;
 				const r = ratio;
-				if (h % 4 === 0 && r >= 3.1) frames = 4;
+				const isSmall = w <= 24;
+				if (h % 4 === 0 && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
 				else if (h % 2 === 0 && r >= 1.45) frames = 2;
-				else if (r >= 3.35) frames = 4;
+				else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
 				else if (r >= 1.45) frames = 2;
 				else frames = 1;
 				const slices = [];
