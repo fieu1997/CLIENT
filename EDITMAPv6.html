@@ -1582,10 +1582,9 @@ class MapViewerApp {
 			drawEffect(effect) {
 			const icon = this.effectIcons.get(effect.templateId);
 			if (icon && icon.complete) {
-				const r = this.getIconFrameRect(icon);
-				const drawX = effect.x + (TILE_SIZE - r.sw) / 2;
-				const drawY = effect.y + (TILE_SIZE - r.sh) / 2;
-				this.ctx.drawImage(icon, r.sx, r.sy, r.sw, r.sh, drawX, drawY, r.sw, r.sh);
+				const drawX = effect.x + (TILE_SIZE - icon.width) / 2;
+				const drawY = effect.y + (TILE_SIZE - icon.height) / 2;
+				this.ctx.drawImage(icon, drawX, drawY, icon.width, icon.height);
 			} else {
 				this.ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
 				this.ctx.strokeStyle = '#cccc00';
@@ -1594,11 +1593,10 @@ class MapViewerApp {
 				this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
 			}
 			if (this.isIconEditingMode && this.selectedEffectObject === effect) {
-				const rSel = icon && icon.complete ? this.getIconFrameRect(icon) : { sx:0, sy:0, sw:TILE_SIZE, sh:TILE_SIZE };
-				const w = rSel.sw;
-				const h = rSel.sh;
-				const x = (icon && icon.complete) ? (effect.x + (TILE_SIZE - rSel.sw) / 2) : effect.x;
-				const y = (icon && icon.complete) ? (effect.y + (TILE_SIZE - rSel.sh) / 2) : effect.y;
+				const w = (icon && icon.complete) ? icon.width : TILE_SIZE;
+				const h = (icon && icon.complete) ? icon.height : TILE_SIZE;
+				const x = (icon && icon.complete) ? (effect.x + (TILE_SIZE - icon.width) / 2) : effect.x;
+				const y = (icon && icon.complete) ? (effect.y + (TILE_SIZE - icon.height) / 2) : effect.y;
 				this.highlightSelection(x, y, w, h);
 			}
 		}
