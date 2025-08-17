@@ -283,6 +283,33 @@
                 <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Bật chế độ sửa icon, click vào icon để chọn rồi kéo thả để đổi vị trí. Chuột phải lên icon để xóa nhanh.</div>
             </div>
 
+            <div class="control-group">
+                <h2>7. Sửa Eff</h2>
+                <div class="inline" style="margin-bottom: 0.5rem;">
+                    <input type="checkbox" id="eff-edit-mode">
+                    <label for="eff-edit-mode">Bật chế độ sửa eff (kéo thả / xóa)</label>
+                </div>
+                <div class="file-input-group">
+                    <label for="eff-id-input">ID eff</label>
+                    <input id="eff-id-input" type="number" min="0" max="9999" step="1" value="0">
+                </div>
+                <div class="inline" style="gap: 0.5rem;">
+                    <button id="add-eff-button" class="action-button">Thêm eff</button>
+                    <button id="delete-eff-button-eff" class="action-button" style="background-color:#d9534f;">Xóa eff đã chọn</button>
+                </div>
+                <div class="file-input-group" style="margin-top:0.5rem;">
+                    <label for="eff-selected-id">Cập nhật ID cho eff đã chọn</label>
+                    <input id="eff-selected-id" type="number" min="0" max="9999" step="1" value="0">
+                </div>
+                <button id="update-eff-id-button" class="action-button">Cập nhật ID eff đã chọn</button>
+                <div class="file-input-group" style="margin-top:0.5rem;">
+                    <label for="eff-raw-input">Raw (nâng cao)</label>
+                    <input id="eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
+                </div>
+                <button id="update-eff-raw-button" class="action-button">Cập nhật Raw cho eff đã chọn</button>
+                <div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa eff.</div>
+            </div>
+
             <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column;">
                 <h2>Nhật Ký (Log)</h2>
                 <div id="log-entries-container" class="log-entries">
@@ -412,6 +439,10 @@ class MapViewerApp {
     selectedEffectObject = null;
     isDraggingIcon = false;
     isCtrlDown = false;
+    // Eff edit state
+    isEffEditingMode = false;
+    selectedEff = null;
+    isDraggingEff = false;
     // Undo state
     undoStack = [];
     undoButton = null;
@@ -472,6 +503,19 @@ class MapViewerApp {
         if (iem) iem.addEventListener('change', (e) => { this.isIconEditingMode = e.target.checked; this.canvas.style.cursor = this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab'); });
         if (addIconBtn) addIconBtn.addEventListener('click', this.handleAddIconAtCenter.bind(this));
         if (delIconBtn) delIconBtn.addEventListener('click', this.handleDeleteSelectedIcon.bind(this));
+
+        // Eff edit controls
+        const eem = document.getElementById('eff-edit-mode');
+        const addEffBtn = document.getElementById('add-eff-button');
+        const delEffBtn = document.getElementById('delete-eff-button-eff');
+        const updEffIdBtn = document.getElementById('update-eff-id-button');
+        const updEffRawBtn = document.getElementById('update-eff-raw-button');
+        if (eem) eem.addEventListener('change', (e) => { this.isEffEditingMode = e.target.checked; this.canvas.style.cursor = this.isEffEditingMode ? 'pointer' : (this.isIconEditingMode ? 'pointer' : (this.isTileEditingMode ? 'crosshair' : 'grab')); });
+        if (addEffBtn) addEffBtn.addEventListener('click', this.handleAddEffAtCenter.bind(this));
+        if (delEffBtn) delEffBtn.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
+        if (updEffIdBtn) updEffIdBtn.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
+        if (updEffRawBtn) updEffRawBtn.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
+
         if (this.undoButton) this.undoButton.addEventListener('click', this.handleUndo.bind(this));
         
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
@@ -1012,6 +1056,25 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
+        // Eff edit: select eff under cursor (unless panning with Ctrl)
+        if (this.isEffEditingMode && !this.isCtrlDown) {
+            const effHit = this.hitTestEff(mx, my);
+            if (effHit) {
+                this.selectedEff = effHit;
+                this.isDraggingEff = true;
+                // Prefill UI editors
+                const idInput = document.getElementById('eff-selected-id');
+                if (idInput) idInput.value = String(effHit.id ?? 0);
+                const rawInput = document.getElementById('eff-raw-input');
+                if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit);
+                this.render();
+                this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`);
+            } else {
+                this.selectedEff = null;
+                this.render();
+            }
+            return;
+        }
         // Icon edit: select icon under cursor (unless panning with Ctrl)
         if (this.isIconEditingMode && !this.isCtrlDown) {
             const hit = this.hitTestEffectObject(mx, my);
@@ -1041,6 +1104,17 @@ class MapViewerApp {
             this.paintTileAt(mx, my);
             return;
         }
+        if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) {
+            if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
+            this.selectedEff.x = Math.round(mx);
+            this.selectedEff.y = Math.round(my);
+            // update raw based on new tile pos
+            const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE));
+            const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE));
+            this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty);
+            this.render();
+            return;
+        }
         if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) {
             // push snapshot only once when drag starts
             if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; }
@@ -1063,6 +1137,7 @@ class MapViewerApp {
         this.isPainting = false;
         this.isPanning = false;
         this.isDraggingIcon = false;
+        this.isDraggingEff = false;
         this.dragStartedForUndo = false;
         this.canvas.classList.remove('grabbing');
     }
@@ -1170,10 +1245,15 @@ class MapViewerApp {
  
         allObjects.forEach(obj => {
             if ('templateId' in obj) this.drawEffect(obj);
-            else if ('mapGoId' in obj) this.drawVgo(obj);
-            else if ('raw' in obj) this.drawEff(obj);
-        });
-    }
+                         else if ('mapGoId' in obj) this.drawVgo(obj);
+             else if ('raw' in obj) this.drawEff(obj);
+         });
+
+        // If an eff is selected, draw a highlight border
+        if (this.isEffEditingMode && this.selectedEff) {
+            this.highlightSelection(this.selectedEff.x, this.selectedEff.y, TILE_SIZE, TILE_SIZE);
+        }
+     }
  
     highlightSelection(x, y, w, h) {
         this.ctx.save();
@@ -1209,26 +1289,27 @@ class MapViewerApp {
         }
     }
     
-    drawEff(eff) {
-        this.ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
-        this.ctx.strokeStyle = '#22c55e';
-        this.ctx.lineWidth = 1 / this.scale;
-        this.ctx.fillRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
-        this.ctx.strokeRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
-        
-        if (eff.text) {
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = `bold ${14 / this.scale}px sans-serif`;
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.strokeStyle = 'black';
-            this.ctx.lineWidth = 3 / this.scale;
-            const textX = eff.x + TILE_SIZE / 2;
-            const textY = eff.y + TILE_SIZE / 2;
-            this.ctx.strokeText(eff.text, textX, textY);
-            this.ctx.fillText(eff.text, textX, textY);
-        }
-    }
+         drawEff(eff) {
+         const isSelected = this.selectedEff === eff;
+         this.ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
+         this.ctx.strokeStyle = isSelected ? '#ffd700' : '#22c55e';
+         this.ctx.lineWidth = 1 / this.scale;
+         this.ctx.fillRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
+         this.ctx.strokeRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
+         
+         if (eff.text) {
+             this.ctx.fillStyle = '#ffffff';
+             this.ctx.font = `bold ${14 / this.scale}px sans-serif`;
+             this.ctx.textAlign = 'center';
+             this.ctx.textBaseline = 'middle';
+             this.ctx.strokeStyle = 'black';
+             this.ctx.lineWidth = 3 / this.scale;
+             const textX = eff.x + TILE_SIZE / 2;
+             const textY = eff.y + TILE_SIZE / 2;
+             this.ctx.strokeText(eff.text, textX, textY);
+             this.ctx.fillText(eff.text, textX, textY);
+         }
+     }
     
     drawEffect(effect) {
         const icon = this.effectIcons.get(effect.templateId);
@@ -1318,6 +1399,36 @@ class MapViewerApp {
         return null;
     }
 
+    // --- Eff editing helpers ---
+    hitTestEff(mx, my) {
+        if (!this.mapData) return null;
+        for (let i = this.mapData.effData.length - 1; i >= 0; i--) {
+            const eff = this.mapData.effData[i];
+            const w = TILE_SIZE, h = TILE_SIZE;
+            if (mx >= eff.x && mx <= eff.x + w && my >= eff.y && my <= eff.y + h) {
+                return eff;
+            }
+        }
+        return null;
+    }
+
+    buildEffRawFromObj(eff) {
+        const id = Number.isFinite(eff.id) ? eff.id : 0;
+        const tx = Math.max(0, Math.round(eff.x / TILE_SIZE));
+        const ty = Math.max(0, Math.round(eff.y / TILE_SIZE));
+        return `0;${id};${tx};${ty};0;0;0;0`;
+    }
+
+    updateEffRawWithXY(raw, tx, ty) {
+        try {
+            const parts = String(raw ?? '').split(';');
+            while (parts.length < 4) parts.push('0');
+            parts[2] = String(tx);
+            parts[3] = String(ty);
+            return parts.join(';');
+        } catch { return raw; }
+    }
+
     handleAddIconAtCenter() {
         if (!this.mapData) return;
         const idInput = document.getElementById('icon-id-input');
@@ -1330,6 +1441,81 @@ class MapViewerApp {
         this.selectedEffectObject = obj;
         this.render();
         this.log(`Đã thêm icon ${iconId} tại giữa màn hình.`);
+    }
+
+    handleAddEffAtCenter() {
+        if (!this.mapData) return;
+        const idInput = document.getElementById('eff-id-input');
+        const effId = Math.max(0, parseInt((idInput?.value)||'0', 10) || 0);
+        const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+        const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+        const tx = Math.max(0, Math.round(cx / TILE_SIZE));
+        const ty = Math.max(0, Math.round(cy / TILE_SIZE));
+        this.pushUndoSnapshot();
+        const eff = { id: effId, x: tx * TILE_SIZE, y: ty * TILE_SIZE, name: `Eff ID: ${effId}`, text: `Eff: ${effId}`, raw: `0;${effId};${tx};${ty};0;0;0;0` };
+        this.mapData.effData.push(eff);
+        this.selectedEff = eff;
+        // Prefill editors
+        const sid = document.getElementById('eff-selected-id');
+        if (sid) sid.value = String(effId);
+        const rawEl = document.getElementById('eff-raw-input');
+        if (rawEl) rawEl.value = eff.raw;
+        this.render();
+        this.log(`Đã thêm eff ${effId} tại giữa màn hình.`);
+    }
+
+    handleDeleteSelectedEff() {
+        if (!this.mapData) return;
+        if (!this.selectedEff) { this.log('Chưa chọn eff nào. Bật chế độ sửa eff và click vào eff.'); return; }
+        const idx = this.mapData.effData.indexOf(this.selectedEff);
+        if (idx >= 0) {
+            this.pushUndoSnapshot();
+            const id = this.selectedEff.id;
+            this.mapData.effData.splice(idx, 1);
+            this.selectedEff = null;
+            this.render();
+            this.log(`Đã xóa eff ${id}.`);
+        }
+    }
+
+    handleUpdateSelectedEffId() {
+        if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật ID.'); return; }
+        const sid = document.getElementById('eff-selected-id');
+        const newId = Math.max(0, parseInt((sid?.value)||'0', 10) || 0);
+        this.pushUndoSnapshot();
+        this.selectedEff.id = newId;
+        this.selectedEff.name = `Eff ID: ${newId}`;
+        this.selectedEff.text = `Eff: ${newId}`;
+        // update raw id field (index 1)
+        const parts = String(this.selectedEff.raw ?? '').split(';');
+        while (parts.length < 2) parts.push('0');
+        parts[1] = String(newId);
+        this.selectedEff.raw = parts.join(';');
+        this.render();
+        this.log(`Đã cập nhật ID eff thành ${newId}.`);
+    }
+
+    handleUpdateSelectedEffRaw() {
+        if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật Raw.'); return; }
+        const rawEl = document.getElementById('eff-raw-input');
+        const newRaw = String(rawEl?.value || '');
+        this.pushUndoSnapshot();
+        this.selectedEff.raw = newRaw;
+        // try parse id, x, y from raw
+        const parts = newRaw.split(';');
+        const newId = parseInt(parts[1] || '0', 10) || 0;
+        const tx = parseInt(parts[2] || '0', 10) || 0;
+        const ty = parseInt(parts[3] || '0', 10) || 0;
+        this.selectedEff.id = newId;
+        this.selectedEff.name = `Eff ID: ${newId}`;
+        this.selectedEff.text = `Eff: ${newId}`;
+        this.selectedEff.x = tx * TILE_SIZE;
+        this.selectedEff.y = ty * TILE_SIZE;
+        // also update side id editor
+        const sid = document.getElementById('eff-selected-id');
+        if (sid) sid.value = String(newId);
+        this.render();
+        this.log('Đã cập nhật Raw của eff.');
     }
 
     handleDeleteSelectedIcon() {
@@ -1418,10 +1604,29 @@ class MapViewerApp {
         const sx = event.clientX - rect.left;
         const sy = event.clientY - rect.top;
         const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+
+        // Try eff first if eff-edit mode
+        if (this.isEffEditingMode) {
+            const effHit = this.hitTestEff(mx, my);
+            if (effHit) {
+                const idx = this.mapData.effData.indexOf(effHit);
+                if (idx >= 0) {
+                    this.pushUndoSnapshot();
+                    this.mapData.effData.splice(idx, 1);
+                    if (this.selectedEff === effHit) this.selectedEff = null;
+                    this.render();
+                    this.log(`Đã xóa eff ${effHit.id ?? '?'} bằng chuột phải.`);
+                    return;
+                }
+            }
+        }
+
+        // Otherwise, try icon
         const hit = this.hitTestEffectObject(mx, my);
         if (hit) {
             const idx = this.mapData.effectObjects.indexOf(hit);
             if (idx >= 0) {
+                this.pushUndoSnapshot();
                 const id = hit.templateId;
                 this.mapData.effectObjects.splice(idx, 1);
                 if (this.selectedEffectObject === hit) this.selectedEffectObject = null;
