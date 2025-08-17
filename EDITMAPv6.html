@@ -534,10 +534,11 @@ class MapViewerApp {
 	
 	mapData = null;
 	tilesetImage = null;
-			effectIcons = new Map();
-		npcFrameCache = new WeakMap();
-		originalMapFileName = '';
-		showOverlays = true;
+	tilesetLibrary = { main: new Map(), water: new Map(), small: new Map() };
+	effectIcons = new Map();
+	npcFrameCache = new WeakMap();
+	originalMapFileName = '';
+	showOverlays = true;
 	animationTickMs = 160;
 	animationTimer = null;
 
@@ -756,8 +757,21 @@ class MapViewerApp {
 						<input type="file" id="fp-tileset-input" accept=".png">
 					</div>
 					<div class="file-input-group">
-						<label for="fp-icon-input">Ảnh Icons (.png)</label>
-						<input type="file" id="fp-icon-input" accept=".png" multiple webkitdirectory directory>
+						<label for="fp-tileset-lib">Thư viện Tileset (chọn thư mục chứa tile{id}.png, tilewater{id}.png, tile_small{id}.png)</label>
+						<input type="file" id="fp-tileset-lib" accept=".png" multiple webkitdirectory directory>
+					</div>
+					<div class="grid-2" style="gap:8px; align-items:end;">
+						<div>
+							<label for="fp-tileset-id-override">Áp dụng tileset theo ID</label>
+							<input type="number" id="fp-tileset-id-override" min="0" step="1" placeholder="VD: 9" />
+							<div class="inline" style="margin-top:6px; gap:6px;">
+								<input type="checkbox" id="fp-tileset-update-mapid" />
+								<label for="fp-tileset-update-mapid">Cập nhật tilesetId của map</label>
+							</div>
+						</div>
+						<div class="inline" style="gap:6px;">
+							<button id="fp-apply-tileset-id" class="action-button">Áp dụng</button>
+						</div>
 					</div>
 					<div class="inline" style="gap: 8px;">
 						<button id="fp-save-map-button" class="action-button" ${this.mapData ? '' : 'disabled'}>Lưu Dữ Liệu (CMD 12)</button>
@@ -765,6 +779,14 @@ class MapViewerApp {
 				`;
 				document.getElementById('fp-map-input')?.addEventListener('change', this.handleMapFile.bind(this));
 				document.getElementById('fp-tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+				document.getElementById('fp-tileset-lib')?.addEventListener('change', this.handleTilesetLibrary.bind(this));
+				document.getElementById('fp-apply-tileset-id')?.addEventListener('click', () => {
+					const idEl = document.getElementById('fp-tileset-id-override');
+					const updEl = document.getElementById('fp-tileset-update-mapid');
+					const id = Math.max(0, parseInt(idEl?.value || '0', 10) || 0);
+					const update = !!(updEl && updEl.checked);
+					this.applyTilesetById(id, update);
+				});
 				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
 				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
 				break;
@@ -1030,6 +1052,10 @@ class MapViewerApp {
 			this.mapData.height = reader.readByte();
 			this.mapData.tilesetId = reader.readByte();
 			this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
+			// Nếu đã có thư viện tileset, tự áp dụng theo ID map
+			if (this.tilesetLibrary && this.tilesetLibrary.main && this.tilesetLibrary.main.size > 0) {
+				this.applyTilesetById(this.mapData.tilesetId, false);
+			}
 			this.mapData.tileMap = [];
 			const tileData = reader.readBytes(this.mapData.width * this.mapData.height);
 			for (let y = 0; y < this.mapData.height; y++) {
@@ -2176,6 +2202,50 @@ class MapViewerApp {
 	startAnimationLoop() {
 		if (this.animationTimer) clearInterval(this.animationTimer);
 		this.animationTimer = setInterval(() => { if (this.mapData) this.render(); }, this.animationTickMs);
+	}
+
+	async handleTilesetLibrary(event) {
+		const input = event.target;
+		if (!input.files) return;
+		const files = Array.from(input.files);
+		if (files.length === 0) { this.log('Không có file tileset nào được chọn.'); return; }
+		let loaded = 0, skipped = 0;
+		const loadImg = (file) => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(file); });
+		for (const f of files) {
+			const name = (f.webkitRelativePath || f.name || '').replace(/\\/g,'/');
+			const base = name.substring(name.lastIndexOf('/')+1).toLowerCase();
+			const match = base.match(/^(tilewater|tile_small|tilesmall|tile)(\d+)\.png$/i);
+			if (!match) { skipped++; continue; }
+			const kindRaw = match[1];
+			const id = parseInt(match[2], 10);
+			if (!Number.isFinite(id)) { skipped++; continue; }
+			let kind = 'main';
+			if (kindRaw === 'tilewater') kind = 'water';
+			else if (kindRaw === 'tile_small' || kindRaw === 'tilesmall') kind = 'small';
+			try {
+				const img = await loadImg(f);
+				this.tilesetLibrary[kind].set(id, img);
+				loaded++;
+			} catch { skipped++; }
+		}
+		this.log(`Thư viện tileset: đã tải ${loaded} ảnh, bỏ qua ${skipped}.`);
+		// Auto-apply nếu map đang mở
+		if (this.mapData && this.tilesetLibrary.main.has(this.mapData.tilesetId)) {
+			this.applyTilesetById(this.mapData.tilesetId, false);
+		}
+	}
+
+	applyTilesetById(id, updateMapId = false) {
+		const img = this.tilesetLibrary?.main?.get(id);
+		if (!img) { this.log(`Không tìm thấy tile${id}.png trong thư viện.`); return; }
+		this.tilesetImage = img;
+		if (this.mapData && updateMapId) {
+			this.mapData.tilesetId = id | 0;
+			this.calculateCollisionMap();
+		}
+		this.populateTilePalette();
+		this.render();
+		this.log(`Đã áp dụng tileset từ thư viện: tile${id}.png${updateMapId ? ' (đã cập nhật tilesetId của map)' : ''}.`);
 	}
 }
 
