@@ -2124,7 +2124,7 @@ class MapViewerApp {
 				const alphaRow = new Float32Array(h);
 				for (let y = 0; y < h; y++) { let sum = 0; let o = y * w * 4 + 3; for (let x = 0; x < w; x++) { sum += data[o]; o += 4; } alphaRow[y] = sum / (255 * w); }
 				const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-				const window = Math.max(1, Math.round(h * 0.08));
+				const window = Math.max(1, Math.round(h * 0.12));
 				const targets = frames === 2 ? [h / 2] : [h / 4, h / 2, (3 * h) / 4];
 				const seams = [];
 				for (const t of targets) {
@@ -2132,7 +2132,10 @@ class MapViewerApp {
 					const s = clamp(Math.round(t) - window, 1, h - 2);
 					const e = clamp(Math.round(t) + window, 1, h - 2);
 					for (let y = s; y <= e; y++) {
-						const score = alphaRow[y];
+						// Ưu tiên đường cắt ở vùng trong suốt (alpha thấp) và ở giữa hai vùng đặc (biên gradient nhỏ)
+						const prev = Math.max(0, y - 1), next = Math.min(h - 1, y + 1);
+						const grad = Math.abs(alphaRow[next] - alphaRow[prev]);
+						const score = alphaRow[y] + grad * 0.25;
 						if (score < bestScore) { bestScore = score; bestY = y; }
 					}
 					seams.push(bestY);
