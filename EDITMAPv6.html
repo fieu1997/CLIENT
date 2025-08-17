@@ -534,9 +534,10 @@ class MapViewerApp {
 	
 	mapData = null;
 	tilesetImage = null;
-	effectIcons = new Map();
-	originalMapFileName = '';
-	showOverlays = true;
+			effectIcons = new Map();
+		npcFrameCache = new WeakMap();
+		originalMapFileName = '';
+		showOverlays = true;
 	animationTickMs = 160;
 	animationTimer = null;
 
@@ -2112,23 +2113,30 @@ class MapViewerApp {
 	}
 
 			getIconFrameRect(img) {
-			// Dùng cho NPC: coi sprite-sheet dọc với 1/2/4 frame; ảnh tĩnh (1 frame) giữ nguyên.
+			// NPC only: cache per image to avoid inconsistent splits; support 1/2/4 vertical frames.
+			const cached = this.npcFrameCache.get(img);
 			const w = img?.width || TILE_SIZE;
 			const h = img?.height || TILE_SIZE;
 			let frames = 1;
-			if (w > 0 && h > 0) {
+			if (cached && cached.w === w && cached.h === h) {
+				frames = cached.frames;
+			} else {
 				const ratio = h / w;
-				// Ngưỡng mềm: >=3.1 ~ 4 khung, >=1.5 ~ 2 khung, còn lại 1 khung
 				if (ratio >= 3.1) frames = 4;
 				else if (ratio >= 1.5) frames = 2;
 				else frames = 1;
+				this.npcFrameCache.set(img, { w, h, frames });
 			}
 			let sx = 0, sy = 0, sw = w, sh = h;
 			if (frames > 1) {
 				const idx = Math.floor(Date.now() / this.animationTickMs) % frames;
-				const per = Math.round(h / frames);
-				sy = Math.min(h - 1, Math.max(0, idx * per));
-				sh = Math.max(1, Math.min(h - sy, per));
+				const per = Math.floor(h / frames);
+				const remainder = h - per * frames;
+				// distribute remainder pixels to top frames to avoid missing bottom row
+				const extraForThis = Math.min(1, Math.max(0, idx < remainder ? 1 : 0));
+				const offsetExtras = Math.min(remainder, idx);
+				sy = idx * per + offsetExtras;
+				sh = per + extraForThis;
 			}
 			return { sx, sy, sw, sh };
 		}
