@@ -1603,7 +1603,7 @@ class MapViewerApp {
 		if (!this.mapData) { this.log("LỖI: Không thể thêm NPC khi chưa có bản đồ nào được tải."); return; }
 		const viewCenterX = (this.canvas.width / 2 - this.panX) / this.scale;
 		const viewCenterY = (this.canvas.height / 2 - this.panY) / this.scale;
-		const newNpc = { name: "New NPC", menuTitle: "Interact", dialog: "Hello!", npcId: this.mapData.npcs.length > 0 ? Math.max(...this.mapData.npcs.map(n => n.npcId)) + 1 : 1, x: Math.round(viewCenterX), y: Math.round(viewCenterY), iconMiniMap: 0, iconInteract: 0, type1: 0, type2: 0, direction: 0, flag1: 0, flag2: 0 };
+		const newNpc = { name: "New NPC", menuTitle: "Interact", dialog: "Hello!", npcId: this.mapData.npcs.length > 0 ? Math.max(...this.mapData.npcs.map(n => n.npcId)) + 1 : 1, x: Math.round(viewCenterX), y: Math.round(viewCenterY), iconMiniMap: 0, iconInteract: 0, type1: 0, type2: 0, direction: 2, flag1: 1, flag2: 0 };
 		this.mapData.npcs.push(newNpc);
 		this.selectedNpc = newNpc;
 		this.log(`Đã thêm NPC mới '${newNpc.name}' tại (${newNpc.x}, ${newNpc.y}).`);
