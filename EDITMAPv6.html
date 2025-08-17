@@ -2117,7 +2117,8 @@ class MapViewerApp {
 				const w = img?.width || TILE_SIZE;
 				const h = img?.height || TILE_SIZE;
 				const ratio = h / Math.max(1, w);
-				let frames = (ratio >= 3.1) ? 4 : 1;
+				const near = (x, y, tol) => Math.abs(x - y) <= tol;
+				let frames = near(ratio, 4, 0.35) ? 4 : 1;
 				// không return sớm; sẽ thử dò seam giữa ảnh để xác nhận 2-frame, nếu không được thì giữ 1-frame
 				const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
 				const data = ctx.getImageData(0, 0, w, h).data;
@@ -2153,9 +2154,10 @@ class MapViewerApp {
 					// Thử phát hiện 2-frame bằng seam ở giữa; nếu seam yếu, coi như 1-frame
 					const margin = Math.round(h * 0.12);
 					const s = findSeamBetween(margin, h - margin);
-					const midBand = Math.max(1, Math.round(h * 0.05));
+					const midBand = Math.max(1, Math.round(h * 0.06));
 					let seamStrength = 1e9; for (let y = Math.max(1, s - midBand); y <= Math.min(h - 2, s + midBand); y++) seamStrength = Math.min(seamStrength, smoothed[y]);
-					if (seamStrength <= 0.08) {
+					const balance = Math.abs((s / h) - 0.5);
+					if (seamStrength <= 0.12 || balance <= 0.08) {
 						slices.push({ sy: 0, sh: Math.max(1, s) });
 						slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
 					} else {
