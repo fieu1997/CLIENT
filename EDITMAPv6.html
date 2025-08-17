@@ -2154,10 +2154,17 @@ class MapViewerApp {
 					// Thử phát hiện 2-frame bằng seam ở giữa; nếu seam yếu, coi như 1-frame
 					const margin = Math.round(h * 0.12);
 					const s = findSeamBetween(margin, h - margin);
-					const midBand = Math.max(1, Math.round(h * 0.06));
-					let seamStrength = 1e9; for (let y = Math.max(1, s - midBand); y <= Math.min(h - 2, s + midBand); y++) seamStrength = Math.min(seamStrength, smoothed[y]);
+					const band = Math.max(1, Math.round(h * 0.05));
+					let centerSum = 0, centerN = 0; for (let y = Math.max(1, s - band); y <= Math.min(h - 2, s + band); y++) { centerSum += smoothed[y]; centerN++; }
+					const centerAvg = centerN > 0 ? centerSum / centerN : 1;
+					let leftSum = 0, leftN = 0; const leftEnd = Math.max(1, s - band); const leftStart = Math.max(1, leftEnd - Math.round(h * 0.12)); for (let y = leftStart; y < leftEnd; y++) { leftSum += smoothed[y]; leftN++; }
+					let rightSum = 0, rightN = 0; const rightStart = Math.min(h - 2, s + band + 1); const rightEnd = Math.min(h - 2, rightStart + Math.round(h * 0.12)); for (let y = rightStart; y <= rightEnd; y++) { rightSum += smoothed[y]; rightN++; }
+					const leftAvg = leftN > 0 ? leftSum / leftN : 1;
+					const rightAvg = rightN > 0 ? rightSum / rightN : 1;
+					const sideAvg = Math.min(leftAvg, rightAvg);
 					const balance = Math.abs((s / h) - 0.5);
-					if (seamStrength <= 0.12 || balance <= 0.08) {
+					const accept = (centerAvg <= 0.18 && (sideAvg - centerAvg) >= 0.06) || (centerAvg <= sideAvg * 0.7) || (balance <= 0.08 && centerAvg <= 0.35);
+					if (accept) {
 						slices.push({ sy: 0, sh: Math.max(1, s) });
 						slices.push({ sy: s + 1, sh: Math.max(1, h - s - 1) });
 					} else {
