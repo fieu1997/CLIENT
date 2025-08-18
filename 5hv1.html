@@ -184,7 +184,270 @@
 	</style>
 </head>
 <body>
-	<!-- __BODY__ -->
+	<div id="top-toolbar">
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="file">Tệp</button>
+			<button class="mode-button" data-mode="resize">Kích thước</button>
+			<button class="mode-button" data-mode="collision">Va chạm</button>
+			<button class="mode-button" data-mode="log">Log</button>
+		</div>
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="tile">Sửa Tile</button>
+			<button class="mode-button" data-mode="icon">Icon</button>
+			<button class="mode-button" data-mode="eff">Eff</button>
+			<button class="mode-button" data-mode="vgo">VGO</button>
+			<button class="mode-button" data-mode="npc">NPC</button>
+		</div>
+		<div class="toolbar-group" style="margin-left:auto; align-items:center;">
+			<label class="inline" style="gap:6px; align-items:center;">
+				<input type="checkbox" id="toggle-overlays" checked>
+				<span>Hiện icon/Eff/NPC</span>
+			</label>
+		</div>
+		<div style="display:flex; gap:8px;">
+			<button id="top-undo-btn" class="mode-button" disabled>↶ Hoàn tác</button>
+		</div>
+	</div>
+	<div class="app-container">
+		<div class="sidebar">
+			<header>
+				<h1>HSO Map Viewer</h1>
+				<p class="description">Tải file map và tileset tương ứng để xem bản đồ một cách trực quan.</p>
+			</header>
+
+			<div class="control-group" style="display:none;">
+				<h2>1. Tải File</h2>
+				<div class="file-input-group">
+					<label id="map-label" for="map-input">File Bản Đồ (.map)</label>
+					<input type="file" id="map-input" accept=".map,.*">
+				</div>
+				<div class="file-input-group">
+					<label id="tileset-label" for="tileset-input">Ảnh Tileset (.png)</label>
+					<input type="file" id="tileset-input" accept=".png">
+				</div>
+				<div class="file-input-group">
+					<label for="icon-input">Ảnh Icons (.png)</label>
+					<input type="file" id="icon-input" accept=".png" multiple webkitdirectory directory>
+				</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>2. Lưu Bản Đồ</h2>
+				<button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu (CMD 12)</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>Hoàn tác</h2>
+				<button id="undo-button" class="action-button" disabled>↶ Hoàn tác</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>3. Chỉnh Kích Thước</h2>
+				<div class="grid-2">
+					<div>
+						<label for="new-width-input">Chiều rộng mới (tiles)</label>
+						<input id="new-width-input" type="number" min="1" step="1" placeholder="width">
+					</div>
+					<div>
+						<label for="new-height-input">Chiều cao mới (tiles)</label>
+						<input id="new-height-input" type="number" min="1" step="1" placeholder="height">
+					</div>
+				</div>
+				<div class="file-input-group">
+					<label for="anchor-select">Neo giữ (anchor)</label>
+					<select id="anchor-select">
+						<option value="top-left" selected>Giữ góc trái trên</option>
+						<option value="center">Giữ giữa</option>
+						<option value="bottom-right">Giữ góc phải dưới</option>
+					</select>
+				</div>
+				<div class="grid-2">
+					<div>
+						<label for="fill-tile-input">Tile mặc định khi mở rộng</label>
+						<input id="fill-tile-input" type="number" min="0" max="255" step="1" value="0">
+					</div>
+					<div class="inline" style="margin-top: 1.8rem;">
+						<input id="clip-objects-checkbox" type="checkbox" checked>
+						<label for="clip-objects-checkbox">Xóa đối tượng nằm ngoài</label>
+					</div>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Lưu ý: Tile size = 24px. Tile = 0 sẽ để trống theo client.</div>
+				<button id="apply-resize-button" class="action-button" style="margin-top: 0.75rem;">Áp dụng thay đổi</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>4. Va chạm</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="show-collision" checked>
+					<label for="show-collision">Hiển thị lớp va chạm 0/1/2</label>
+				</div>
+				<div class="file-input-group">
+					<label for="collision-mode">Chế độ hiển thị</label>
+					<select id="collision-mode">
+						<option value="number" selected>Hiển thị số</option>
+						<option value="color">Tô màu</option>
+					</select>
+				</div>
+				<div class="grid-2">
+					<div>
+						<label for="f-threshold">Ngưỡng F (chặn)</label>
+						<input id="f-threshold" type="number" min="0" max="255" step="1" value="32">
+					</div>
+					<div>
+						<label for="g-threshold">Ngưỡng G (nước)</label>
+						<input id="g-threshold" type="number" min="0" max="255" step="1" value="26">
+					</div>
+				</div>
+			</div>
+
+			<div class="control-group" id="icon-palette-panel" style="display:none;">
+				<h2>Danh sách Icon (0-999)</h2>
+				<div id="icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:220px; overflow:auto;"></div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Kéo icon từ danh sách và thả vào map để thêm nhanh.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>5. Chỉnh sửa Tile</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="tile-edit-mode">
+					<label for="tile-edit-mode">Bật chế độ sửa tile (vẽ)</label>
+				</div>
+				<div class="small-muted">Tile đang chọn: <strong id="selected-tile-id">1</strong></div>
+				<div id="tile-palette-panel" style="display:none; margin-top: 0.5rem; max-height:200px; overflow:auto;">
+					<div id="tile-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 24px); gap:4px;"></div>
+				</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>6. Sửa Icon (0-999)</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="icon-edit-mode">
+					<label for="icon-edit-mode">Bật chế độ sửa icon (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="icon-id-input">ID icon (0-999)</label>
+					<input id="icon-id-input" type="number" min="0" max="999" step="1" value="0">
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-icon-button" class="action-button">Thêm icon</button>
+					<button id="delete-icon-button" class="action-button" style="background-color:#d9534f;">Xóa icon đã chọn</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Bật chế độ sửa icon, click vào icon để chọn rồi kéo thả để đổi vị trí. Chuột phải lên icon để xóa nhanh.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>7. Sửa Eff</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="eff-edit-mode">
+					<label for="eff-edit-mode">Bật chế độ sửa eff (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="eff-id-input">ID eff</label>
+					<input id="eff-id-input" type="number" min="0" max="9999" step="1" value="0">
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-eff-button" class="action-button">Thêm eff</button>
+					<button id="delete-eff-button-eff" class="action-button" style="background-color:#d9534f;">Xóa eff đã chọn</button>
+				</div>
+				<div class="file-input-group" style="margin-top:0.5rem;">
+					<label for="eff-selected-id">Cập nhật ID cho eff đã chọn</label>
+					<input id="eff-selected-id" type="number" min="0" max="9999" step="1" value="0">
+				</div>
+				<button id="update-eff-id-button" class="action-button">Cập nhật ID eff đã chọn</button>
+				<div class="file-input-group" style="margin-top:0.5rem;">
+					<label for="eff-raw-input">Raw (nâng cao)</label>
+					<input id="eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
+				</div>
+				<button id="update-eff-raw-button" class="action-button">Cập nhật Raw cho eff đã chọn</button>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa eff.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>8. Sửa Cổng VGO</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="vgo-edit-mode">
+					<label for="vgo-edit-mode">Bật chế độ sửa cổng VGO (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="vgo-name-input">Tên cổng</label>
+					<input id="vgo-name-input" type="text" placeholder="Tên cổng...">
+				</div>
+				<div class="inline" style="gap: 0.5rem; margin-top: 0.5rem;">
+					<button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
+					<button id="delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Mũi tên chỉ hướng sẽ do client quyết định theo chuẩn của map.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>9. NPC</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="npc-edit-mode">
+					<label for="npc-edit-mode">Bật chế độ sửa NPC (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="npc-input">Tệp NPC (.dat)</label>
+					<input type="file" id="npc-input" accept=".dat,.*" multiple>
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-npc-button" class="action-button">Thêm NPC</button>
+					<button id="edit-npc-button" class="action-button" style="background-color:#6c757d;">Sửa NPC đã chọn</button>
+					<button id="save-npcs-button" class="action-button" style="background-color:#0275d8;">Lưu NPC</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Icon minimap: dùng ảnh ID 3000 + iconMiniMap. Icon tương tác: 3500 + iconInteract.</div>
+			</div>
+
+			<div class="control-group" style="flex-grow: 1; display: none; flex-direction: column;">
+				<h2>Nhật Ký (Log)</h2>
+				<div id="log-entries-container" class="log-entries">
+					<div id="initial-log-entry" class="log-entry"><span class="log-timestamp"></span>Chào mừng! Hãy tải file map để bắt đầu.</div>
+				</div>
+			</div>
+		</div>
+		
+		<main id="canvas-container">
+			<div id="welcome-message"><p>Vui lòng tải lên file bản đồ và ảnh tileset.</p></div>
+			<canvas id="map-canvas" style="display: none;"></canvas>
+			<!-- NPC Editor Modal -->
+			<div id="npc-editor-modal">
+				<h3 id="npc-editor-title">Edit NPC</h3>
+				<form id="npc-editor-form">
+					<div class="grid-2">
+						<div class="field"><label>Tên</label><input name="name" type="text"></div>
+						<div class="field"><label>Menu Title</label><input name="menuTitle" type="text"></div>
+						<div class="field"><label>npcId</label><input name="npcId" type="number" step="1"></div>
+						<div class="field"><label>iconMiniMap</label><input id="npc-iconMiniMap" name="iconMiniMap" type="number" step="1"></div>
+						<div class="field"><label>X</label><input name="x" type="number" step="1"></div>
+						<div class="field"><label>Y</label><input name="y" type="number" step="1"></div>
+						<div class="field"><label>type1</label><input name="type1" type="number" step="1"></div>
+						<div class="field"><label>type2</label><input name="type2" type="number" step="1"></div>
+						<div class="field"><label>direction</label><input name="direction" type="number" step="1"></div>
+						<div class="field"><label>iconInteract</label><input id="npc-iconInteract" name="iconInteract" type="number" step="1"></div>
+						<div class="field"><label>flag1</label><input name="flag1" type="number" step="1"></div>
+						<div class="field"><label>flag2</label><input name="flag2" type="number" step="1"></div>
+					</div>
+					<div class="field" style="margin-top:4px;">
+						<label>dialog</label>
+						<textarea name="dialog" rows="3"></textarea>
+					</div>
+					<div class="inline" style="justify-content: space-between; margin: 8px 0;">
+						<div>
+							<div class="small-muted">Minimap Preview</div>
+							<div id="minimap-icon-preview" class="icon-preview">?</div>
+						</div>
+						<div>
+							<div class="small-muted">Interact Preview</div>
+							<div id="interact-icon-preview" class="icon-preview">?</div>
+						</div>
+					</div>
+					<div id="npc-editor-actions">
+						<button type="button" id="npc-editor-save" class="action-button">Lưu</button>
+						<button type="button" id="npc-editor-cancel" class="action-button" style="background-color:#d9534f;">Hủy</button>
+					</div>
+				</form>
+			</div>
+		</main>
+	</div>
 	<script type="module">
 	//__SCRIPT__
 	</script>
