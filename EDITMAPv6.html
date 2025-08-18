@@ -210,6 +210,2286 @@
 	</div>
 	<div class="app-container">
 		<div class="sidebar">
+			header>
+				<h1>HSO Map Viewer</h1>
+				<p class="description">Tải file map và tileset tương ứng để xem bản đồ một cách trực quan.</p>
+			</header>
+
+			<div class="control-group" style="display:none;">
+				<h2>1. Tải File</h2>
+				<div class="file-input-group">
+					<label id="map-label" for="map-input">File Bản Đồ (.map)</label>
+					<input type="file" id="map-input" accept=".map,.*">
+				</div>
+				<div class="file-input-group">
+					<label id="tileset-label" for="tileset-input">Ảnh Tileset (.png)</label>
+					<input type="file" id="tileset-input" accept=".png">
+				</div>
+				<div class="file-input-group">
+					<label for="icon-input">Ảnh Icons (.png)</label>
+					<input type="file" id="icon-input" accept=".png" multiple webkitdirectory directory>
+				</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>2. Lưu Bản Đồ</h2>
+				<button id="save-map-button" class="action-button" disabled>Lưu Dữ Liệu (CMD 12)</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>Hoàn tác</h2>
+				<button id="undo-button" class="action-button" disabled>↶ Hoàn tác</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>3. Chỉnh Kích Thước</h2>
+				<div class="grid-2">
+					<div>
+						<label for="new-width-input">Chiều rộng mới (tiles)</label>
+						<input id="new-width-input" type="number" min="1" step="1" placeholder="width">
+					</div>
+					<div>
+						<label for="new-height-input">Chiều cao mới (tiles)</label>
+						<input id="new-height-input" type="number" min="1" step="1" placeholder="height">
+					</div>
+				</div>
+				<div class="file-input-group">
+					<label for="anchor-select">Neo giữ (anchor)</label>
+					<select id="anchor-select">
+						<option value="top-left" selected>Giữ góc trái trên</option>
+						<option value="center">Giữ giữa</option>
+						<option value="bottom-right">Giữ góc phải dưới</option>
+					</select>
+				</div>
+				<div class="grid-2">
+					<div>
+						<label for="fill-tile-input">Tile mặc định khi mở rộng</label>
+						<input id="fill-tile-input" type="number" min="0" max="255" step="1" value="0">
+					</div>
+					<div class="inline" style="margin-top: 1.8rem;">
+						<input id="clip-objects-checkbox" type="checkbox" checked>
+						<label for="clip-objects-checkbox">Xóa đối tượng nằm ngoài</label>
+					</div>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Lưu ý: Tile size = 24px. Tile = 0 sẽ để trống theo client.</div>
+				<button id="apply-resize-button" class="action-button" style="margin-top: 0.75rem;">Áp dụng thay đổi</button>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>4. Va chạm</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="show-collision" checked>
+					<label for="show-collision">Hiển thị lớp va chạm 0/1/2</label>
+				</div>
+				<div class="file-input-group">
+					<label for="collision-mode">Chế độ hiển thị</label>
+					<select id="collision-mode">
+						<option value="number" selected>Hiển thị số</option>
+						<option value="color">Tô màu</option>
+					</select>
+				</div>
+				<div class="grid-2">
+					<div>
+						<label for="f-threshold">Ngưỡng F (chặn)</label>
+						<input id="f-threshold" type="number" min="0" max="255" step="1" value="32">
+					</div>
+					<div>
+						<label for="g-threshold">Ngưỡng G (nước)</label>
+						<input id="g-threshold" type="number" min="0" max="255" step="1" value="26">
+					</div>
+				</div>
+			</div>
+
+			<div class="control-group" id="icon-palette-panel" style="display:none;">
+				<h2>Danh sách Icon (0-999)</h2>
+				<div id="icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:220px; overflow:auto;"></div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Kéo icon từ danh sách và thả vào map để thêm nhanh.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>5. Chỉnh sửa Tile</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="tile-edit-mode">
+					<label for="tile-edit-mode">Bật chế độ sửa tile (vẽ)</label>
+				</div>
+				<div class="small-muted">Tile đang chọn: <strong id="selected-tile-id">1</strong></div>
+				<div id="tile-palette-panel" style="display:none; margin-top: 0.5rem; max-height:200px; overflow:auto;">
+					<div id="tile-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 24px); gap:4px;"></div>
+				</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>6. Sửa Icon (0-999)</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="icon-edit-mode">
+					<label for="icon-edit-mode">Bật chế độ sửa icon (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="icon-id-input">ID icon (0-999)</label>
+					<input id="icon-id-input" type="number" min="0" max="999" step="1" value="0">
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-icon-button" class="action-button">Thêm icon</button>
+					<button id="delete-icon-button" class="action-button" style="background-color:#d9534f;">Xóa icon đã chọn</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Bật chế độ sửa icon, click vào icon để chọn rồi kéo thả để đổi vị trí. Chuột phải lên icon để xóa nhanh.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>7. Sửa Eff</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="eff-edit-mode">
+					<label for="eff-edit-mode">Bật chế độ sửa eff (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="eff-id-input">ID eff</label>
+					<input id="eff-id-input" type="number" min="0" max="9999" step="1" value="0">
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-eff-button" class="action-button">Thêm eff</button>
+					<button id="delete-eff-button-eff" class="action-button" style="background-color:#d9534f;">Xóa eff đã chọn</button>
+				</div>
+				<div class="file-input-group" style="margin-top:0.5rem;">
+					<label for="eff-selected-id">Cập nhật ID cho eff đã chọn</label>
+					<input id="eff-selected-id" type="number" min="0" max="9999" step="1" value="0">
+				</div>
+				<button id="update-eff-id-button" class="action-button">Cập nhật ID eff đã chọn</button>
+				<div class="file-input-group" style="margin-top:0.5rem;">
+					<label for="eff-raw-input">Raw (nâng cao)</label>
+					<input id="eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
+				</div>
+				<button id="update-eff-raw-button" class="action-button">Cập nhật Raw cho eff đã chọn</button>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa eff.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>8. Sửa Cổng VGO</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="vgo-edit-mode">
+					<label for="vgo-edit-mode">Bật chế độ sửa cổng VGO (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="vgo-name-input">Tên cổng</label>
+					<input id="vgo-name-input" type="text" placeholder="Tên cổng...">
+				</div>
+				<div class="inline" style="gap: 0.5rem; margin-top: 0.5rem;">
+					<button id="add-vgo-button" class="action-button">Thêm cổng VGO</button>
+					<button id="delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Mẹo: Giữ Ctrl để di chuyển bản đồ khi đang sửa cổng VGO. Mũi tên chỉ hướng sẽ do client quyết định theo chuẩn của map.</div>
+			</div>
+
+			<div class="control-group" style="display:none;">
+				<h2>9. NPC</h2>
+				<div class="inline" style="margin-bottom: 0.5rem;">
+					<input type="checkbox" id="npc-edit-mode">
+					<label for="npc-edit-mode">Bật chế độ sửa NPC (kéo thả / xóa)</label>
+				</div>
+				<div class="file-input-group">
+					<label for="npc-input">Tệp NPC (.dat)</label>
+					<input type="file" id="npc-input" accept=".dat,.*" multiple>
+				</div>
+				<div class="inline" style="gap: 0.5rem;">
+					<button id="add-npc-button" class="action-button">Thêm NPC</button>
+					<button id="edit-npc-button" class="action-button" style="background-color:#6c757d;">Sửa NPC đã chọn</button>
+					<button id="save-npcs-button" class="action-button" style="background-color:#0275d8;">Lưu NPC</button>
+				</div>
+				<div class="small-muted" style="margin-top: 0.5rem;">Icon minimap: dùng ảnh ID 3000 + iconMiniMap. Icon tương tác: 3500 + iconInteract.</div>
+			</div>
+
+			<div class="control-group" style="flex-grow: 1; display: none; flex-direction: column;">
+				<h2>Nhật Ký (Log)</h2>
+				<div id="log-entries-container" class="log-entries">
+					<div id="initial-log-entry" class="log-entry"><span class="log-timestamp"></span>Chào mừng! Hãy tải file map để bắt đầu.</div>
+				</div>
+			</div>
+		</div>
+		
+		<main id="canvas-container">
+			<div id="welcome-message"><p>Vui lòng tải lên file bản đồ và ảnh tileset.</p></div>
+			<canvas id="map-canvas" style="display: none;"></canvas>
+			<!-- NPC Editor Modal -->
+			<div id="npc-editor-modal">
+				<h3 id="npc-editor-title">Edit NPC</h3>
+				<form id="npc-editor-form">
+					<div class="grid-2">
+						<div class="field"><label>Tên</label><input name="name" type="text"></div>
+						<div class="field"><label>Menu Title</label><input name="menuTitle" type="text"></div>
+						<div class="field"><label>npcId</label><input name="npcId" type="number" step="1"></div>
+						<div class="field"><label>iconMiniMap</label><input id="npc-iconMiniMap" name="iconMiniMap" type="number" step="1"></div>
+						<div class="field"><label>X</label><input name="x" type="number" step="1"></div>
+						<div class="field"><label>Y</label><input name="y" type="number" step="1"></div>
+						<div class="field"><label>type1</label><input name="type1" type="number" step="1"></div>
+						<div class="field"><label>type2</label><input name="type2" type="number" step="1"></div>
+						<div class="field"><label>direction</label><input name="direction" type="number" step="1"></div>
+						<div class="field"><label>iconInteract</label><input id="npc-iconInteract" name="iconInteract" type="number" step="1"></div>
+						<div class="field"><label>flag1</label><input name="flag1" type="number" step="1"></div>
+						<div class="field"><label>flag2</label><input name="flag2" type="number" step="1"></div>
+					</div>
+					<div class="field" style="margin-top:4px;">
+						<label>dialog</label>
+						<textarea name="dialog" rows="3"></textarea>
+					</div>
+					<div class="inline" style="justify-content: space-between; margin: 8px 0;">
+						<div>
+							<div class="small-muted">Minimap Preview</div>
+							<div id="minimap-icon-preview" class="icon-preview">?</div>
+						</div>
+						<div>
+							<div class="small-muted">Interact Preview</div>
+							<div id="interact-icon-preview" class="icon-preview">?</div>
+						</div>
+					</div>
+					<div id="npc-editor-actions">
+						<button type="button" id="npc-editor-save" class="action-button">Lưu</button>
+						<button type="button" id="npc-editor-cancel" class="action-button" style="background-color:#d9534f;">Hủy</button>
+					</div>
+				</form>
+			</div>
+		</main>
+	</div>
+
+	<script type="module">
+class MapData {
+	mapName = "";
+	mapVersion = 0;
+	width = 0;
+	height = 0;
+	tilesetId = -1;
+	tileMap = [];
+	vgos = [];
+	effectObjects = [];
+	effData = [];
+	internalVgoCount = null;
+	collisionMap = [];
+	npcs = [];
+}
+
+const TILE_SIZE = 24;
+
+class BinaryReader {
+	view;
+	offset;
+	textDecoder;
+
+	constructor(buffer) {
+		this.view = new DataView(buffer);
+		this.offset = 0;
+		this.textDecoder = new TextDecoder('utf-8');
+	}
+
+	readByte() { return this.view.getInt8(this.offset++); }
+	readShort() { const val = this.view.getInt16(this.offset, false); this.offset += 2; return val; }
+	readUShort() { const val = this.view.getUint16(this.offset, false); this.offset += 2; return val; }
+	readUTF() {
+		const len = this.readUShort();
+		const strBytes = new Uint8Array(this.view.buffer, this.offset, len);
+		this.offset += len;
+		return this.textDecoder.decode(strBytes);
+	}
+	readBytes(num) {
+		const bytes = new Uint8Array(this.view.buffer, this.offset, num);
+		this.offset += num;
+		return bytes;
+	}
+	seek(offset, from = 'start') {
+		if (from === 'start') this.offset = offset;
+		else this.offset += offset;
+	}
+	get eof() { return this.offset >= this.view.byteLength; }
+	getBuffer() { return this.view.buffer; }
+	getInt8At(offset) { return this.view.getInt8(offset); }
+	getUint8At(offset) { return this.view.getUint8(offset); }
+}
+
+class BinaryWriter {
+	byteList = [];
+	textEncoder;
+
+	constructor() { this.textEncoder = new TextEncoder(); }
+
+	writeByte(value) { this.byteList.push(value & 0xFF); }
+	writeShort(value) {
+		const arr = new Uint8Array(2);
+		new DataView(arr.buffer).setInt16(0, value, false);
+		this.byteList.push(...Array.from(arr));
+	}
+	writeUTF(str) {
+		const encoded = this.textEncoder.encode(str);
+		this.writeShort(encoded.length);
+		this.byteList.push(...Array.from(encoded));
+	}
+	writeBytes(bytes) { this.byteList.push(...Array.from(bytes)); }
+	getBuffer() { return new Uint8Array(this.byteList).buffer; }
+}
+
+class MapViewerApp {
+	canvas;
+	ctx;
+	canvasContainer;
+	welcomeMessage;
+	logEntriesContainer;
+	saveMapButton;
+	textDecoder;
+	
+	mapData = null;
+	tilesetImage = null;
+	tilesetWaterImage = null;
+	tilesetSmallImage = null;
+	tilesetLibrary = { main: new Map(), water: new Map(), small: new Map() };
+	effectIcons = new Map();
+	npcFrameCache = new WeakMap();
+	originalMapFileName = '';
+	showOverlays = true;
+	animationTickMs = 160;
+	animationTimer = null;
+
+	scale = 1.0;
+	panX = 0;
+	panY = 0;
+
+	isPanning = false;
+	lastMouseX = 0;
+	lastMouseY = 0;
+
+	// Collision state
+	showCollision = true;
+	collisionMode = 'number';
+	fThreshold = 32;
+	gThreshold = 26;
+
+	// Tile edit state
+	isTileEditingMode = false;
+	isPainting = false;
+	selectedTileId = 1;
+
+	// Icon edit state
+	isIconEditingMode = false;
+	selectedEffectObject = null;
+	isDraggingIcon = false;
+	isCtrlDown = false;
+	// Eff edit state
+	isEffEditingMode = false;
+	selectedEff = null;
+	isDraggingEff = false;
+	// VGO edit state
+	isVgoEditingMode = false;
+	selectedVgo = null;
+	isDraggingVgo = false;
+	// NPC edit state
+	isNpcEditingMode = false;
+	selectedNpc = null;
+	isDraggingNpc = false;
+	// NPC editor modal state
+	npcEditorModal = null;
+	npcEditorForm = null;
+	npcEditorTitle = null;
+	currentEditingNpc = null;
+	isNewNpc = false;
+	// Undo state
+	undoStack = [];
+	undoButton = null;
+	topUndoButton = null;
+	dragStartedForUndo = false;
+	// Floating UI state
+	floatingPanel = null;
+	floatingContent = null;
+	currentMode = 'none';
+
+	constructor() {
+		this.canvas = document.getElementById('map-canvas');
+		this.ctx = this.canvas.getContext('2d');
+		this.canvasContainer = document.getElementById('canvas-container');
+		this.welcomeMessage = document.getElementById('welcome-message');
+		this.logEntriesContainer = document.getElementById('log-entries-container');
+		this.saveMapButton = document.getElementById('save-map-button');
+		this.undoButton = document.getElementById('undo-button');
+		this.textDecoder = new TextDecoder('utf-8');
+
+		this.npcEditorModal = document.getElementById('npc-editor-modal');
+		this.npcEditorForm = document.getElementById('npc-editor-form');
+		this.npcEditorTitle = document.getElementById('npc-editor-title');
+
+		this.initEventListeners();
+		this.initTopToolbar();
+		this.topUndoButton = document.getElementById('top-undo-btn');
+		if (this.topUndoButton) { this.topUndoButton.addEventListener('click', this.handleUndo.bind(this)); this.topUndoButton.disabled = true; }
+		this.log("Map viewer đã khởi tạo. Sẵn sàng nhận file.");
+		this.startAnimationLoop();
+	}
+
+	log(message) {
+		if (!this.logEntriesContainer) return;
+		const initialLog = document.getElementById('initial-log-entry');
+		if (initialLog) initialLog.remove();
+		const timestamp = new Date().toLocaleTimeString('vi-VN');
+		const newEntry = document.createElement('div');
+		newEntry.className = 'log-entry';
+		newEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message.replace(/\n/g, '<br>')}`;
+		this.logEntriesContainer.prepend(newEntry);
+		const fpLog = document.getElementById('fp-log-entries');
+		if (fpLog) { fpLog.prepend(newEntry.cloneNode(true)); }
+	}
+
+	initEventListeners() {
+		document.getElementById('map-input')?.addEventListener('change', this.handleMapFile.bind(this));
+		document.getElementById('tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+		document.getElementById('icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
+		this.saveMapButton.addEventListener('click', this.handleSaveMap.bind(this));
+
+		document.getElementById('apply-resize-button')?.addEventListener('click', this.applyResizeFromUI.bind(this));
+		
+		// Collision controls
+		const sc = document.getElementById('show-collision');
+		const cm = document.getElementById('collision-mode');
+		const ft = document.getElementById('f-threshold');
+		const gt = document.getElementById('g-threshold');
+		if (sc) sc.addEventListener('change', (e) => { this.showCollision = e.target.checked; this.render(); });
+		if (cm) cm.addEventListener('change', (e) => { this.collisionMode = e.target.value; this.render(); });
+		const onParam = () => { this.fThreshold = parseInt(ft.value||'32',10)||32; this.gThreshold = parseInt(gt.value||'26',10)||26; this.calculateCollisionMap(); this.render(); };
+		if (ft) ft.addEventListener('input', onParam);
+		if (gt) gt.addEventListener('input', onParam);
+		
+		// Tile/Icon/Eff/VGO/NPC controls are now handled via floating panel
+
+		// NPC modal
+		document.getElementById('npc-editor-save')?.addEventListener('click', this.handleNpcEditorSave.bind(this));
+		document.getElementById('npc-editor-cancel')?.addEventListener('click', () => this.hideNpcEditor(true));
+		document.getElementById('npc-iconMiniMap')?.addEventListener('input', () => { this.updateNpcEditorIconPreview('npc-iconMiniMap', 'minimap-icon-preview', 3000); });
+		document.getElementById('npc-iconInteract')?.addEventListener('input', () => { this.updateNpcEditorIconPreview('npc-iconInteract', 'interact-icon-preview', 3500); });
+
+		if (this.undoButton) this.undoButton.addEventListener('click', this.handleUndo.bind(this));
+		
+		this.canvas.addEventListener('wheel', this.handleWheel.bind(this));
+		this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+		this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+		this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+		this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+		this.canvas.addEventListener('drop', this.handleDrop.bind(this));
+		this.canvas.addEventListener('dragover', this.handleDragOver.bind(this));
+		this.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
+		const toggle = document.getElementById('toggle-overlays');
+		if (toggle) toggle.addEventListener('change', (e) => { this.showOverlays = !!e.target.checked; this.render(); });
+		window.addEventListener('resize', this.render.bind(this));
+		// Ctrl tracking
+		window.addEventListener('keydown', (e) => { if (e.key === 'Control') this.isCtrlDown = true; });
+		window.addEventListener('keyup', (e) => { if (e.key === 'Control') this.isCtrlDown = false; });
+	}
+
+	initTopToolbar() {
+		const toolbar = document.getElementById('top-toolbar');
+		if (!toolbar) return;
+		const buttons = Array.from(toolbar.querySelectorAll('.mode-button'));
+		buttons.forEach(btn => {
+			btn.addEventListener('click', () => {
+				const mode = btn.getAttribute('data-mode');
+				if (!mode) return;
+				if (mode === 'log' || mode === 'file' || mode === 'resize' || mode === 'collision' || mode === 'tile' || mode === 'icon' || mode === 'eff' || mode === 'vgo' || mode === 'npc') {
+					this.openMode(mode);
+				}
+			});
+		});
+	}
+
+	updateModeButtonsState(active) {
+		const toolbar = document.getElementById('top-toolbar');
+		if (!toolbar) return;
+		const buttons = Array.from(toolbar.querySelectorAll('.mode-button'));
+		buttons.forEach(btn => {
+			const mode = btn.getAttribute('data-mode');
+			if (active && mode === active) btn.classList.add('active'); else btn.classList.remove('active');
+		});
+	}
+
+	openMode(mode) {
+		if (!mode) return;
+		this.currentMode = mode;
+		// Only toggle exclusive editing for canvas edit modes
+		if (['tile','icon','eff','vgo','npc'].includes(mode)) {
+			this.setExclusiveEditMode(mode);
+		} else {
+			this.setExclusiveEditMode('none');
+		}
+		this.ensureFloatingPanel();
+		this.setFloatingContent(mode);
+		this.updateModeButtonsState(mode);
+	}
+
+	ensureFloatingPanel() {
+		if (this.floatingPanel) { this.floatingPanel.style.display = 'flex'; return; }
+		const panel = document.createElement('div');
+		panel.className = 'floating-panel';
+		panel.id = 'floating-panel';
+		panel.style.top = '80px';
+		panel.style.left = '420px';
+		const header = document.createElement('div');
+		header.className = 'floating-header';
+		const title = document.createElement('div');
+		title.className = 'floating-title';
+		title.id = 'floating-title';
+		title.textContent = 'Editor';
+		const controls = document.createElement('div'); controls.className = 'floating-controls';
+		const minimizeBtn = document.createElement('button'); minimizeBtn.textContent = 'Thu nhỏ';
+		const closeBtn = document.createElement('button'); closeBtn.textContent = 'Đóng';
+		controls.appendChild(minimizeBtn); controls.appendChild(closeBtn);
+		header.appendChild(title); header.appendChild(controls);
+		const content = document.createElement('div'); content.className = 'floating-content';
+		panel.appendChild(header); panel.appendChild(content);
+		this.canvasContainer.appendChild(panel);
+		this.floatingPanel = panel;
+		this.floatingContent = content;
+		this.enablePanelDrag(panel, header);
+		minimizeBtn.addEventListener('click', () => this.minimizeFloatingPanel());
+		closeBtn.addEventListener('click', () => { this.closeFloatingPanel(); this.updateModeButtonsState('none'); });
+	}
+
+	setFloatingContent(mode) {
+		if (!this.floatingContent) return;
+		const title = document.getElementById('floating-title');
+		switch (mode) {
+			case 'file':
+				if (title) title.textContent = 'Tệp & Lưu';
+				this.floatingContent.innerHTML = `
+					<div class="file-input-group">
+						<label for="fp-map-input">File Bản Đồ (.map)</label>
+						<input type="file" id="fp-map-input" accept=".map,.*">
+					</div>
+					<div class="file-input-group">
+						<label for="fp-tileset-input">Ảnh Tileset (.png)</label>
+						<input type="file" id="fp-tileset-input" accept=".png">
+					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-tileset-water-input">Ảnh Tile Water (.png, tuỳ chọn)</label>
+							<input type="file" id="fp-tileset-water-input" accept=".png">
+						</div>
+						<div>
+							<label for="fp-tileset-small-input">Ảnh Tile Small (.png, tuỳ chọn)</label>
+							<input type="file" id="fp-tileset-small-input" accept=".png">
+						</div>
+					</div>
+					<div class="grid-2" style="gap:8px; align-items:end;">
+						<div>
+							<label for="fp-tileset-id-only">Thiết lập tilesetId (byte thứ 3 của tileBlob)</label>
+							<input type="number" id="fp-tileset-id-only" min="0" step="1" placeholder="VD: 1" />
+						</div>
+						<div class="inline" style="gap:6px;">
+							<button id="fp-apply-tileset-id-only" class="action-button">Cập nhật ID map</button>
+						</div>
+					</div>
+					<div class="grid-2" style="gap:8px; align-items:end;">
+						<div>
+							<label for="fp-header-b2">Header byte #2 (cột thứ 2 đầu file)</label>
+							<input type="number" id="fp-header-b2" min="0" max="255" step="1" placeholder="VD: 1" />
+						</div>
+						<div class="inline" style="gap:6px;">
+							<button id="fp-apply-header-b2" class="action-button">Cập nhật Header</button>
+						</div>
+					</div>
+					<div class="inline" style="gap: 8px;">
+						<button id="fp-save-map-button" class="action-button" ${this.mapData ? '' : 'disabled'}>Lưu Dữ Liệu (CMD 12)</button>
+						<button id="fp-export-tileset-extras" class="action-button" style="background-color:#5b9bd5;">Xuất water/small theo ID</button>
+					</div>
+				`;
+				document.getElementById('fp-map-input')?.addEventListener('change', this.handleMapFile.bind(this));
+				document.getElementById('fp-tileset-input')?.addEventListener('change', this.handleTilesetFile.bind(this));
+				document.getElementById('fp-tileset-water-input')?.addEventListener('change', this.handleTilesetWaterFile.bind(this));
+				document.getElementById('fp-tileset-small-input')?.addEventListener('change', this.handleTilesetSmallFile.bind(this));
+				document.getElementById('fp-apply-tileset-id-only')?.addEventListener('click', () => {
+					const idEl = document.getElementById('fp-tileset-id-only');
+					const id = Math.max(0, parseInt(idEl?.value || '0', 10) || 0);
+					this.applyTilesetIdOnly(id);
+				});
+				document.getElementById('fp-apply-header-b2')?.addEventListener('click', () => {
+					const b2El = document.getElementById('fp-header-b2');
+					const v = Math.max(0, Math.min(255, parseInt(b2El?.value || '0', 10) || 0));
+					this.headerByte2 = v;
+					this.log(`Đã cập nhật header byte #2 = ${v}. Sẽ lưu vào hai byte đầu file.`);
+				});
+				document.getElementById('fp-export-tileset-extras')?.addEventListener('click', this.exportTilesetExtras.bind(this));
+				document.getElementById('fp-icon-input')?.addEventListener('change', this.handleIconFiles.bind(this));
+				document.getElementById('fp-save-map-button')?.addEventListener('click', this.handleSaveMap.bind(this));
+				break;
+			case 'resize':
+				if (title) title.textContent = 'Chỉnh Kích Thước';
+				this.floatingContent.innerHTML = `
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-new-width-input">Chiều rộng mới (tiles)</label>
+							<input id="fp-new-width-input" type="number" min="1" step="1" value="${this.mapData ? this.mapData.width : ''}">
+						</div>
+						<div>
+							<label for="fp-new-height-input">Chiều cao mới (tiles)</label>
+							<input id="fp-new-height-input" type="number" min="1" step="1" value="${this.mapData ? this.mapData.height : ''}">
+						</div>
+					</div>
+					<div class="file-input-group" style="margin-top:6px;">
+						<label for="fp-anchor-select">Neo giữ (anchor)</label>
+						<select id="fp-anchor-select">
+							<option value="top-left" selected>Giữ góc trái trên</option>
+							<option value="center">Giữ giữa</option>
+							<option value="bottom-right">Giữ góc phải dưới</option>
+						</select>
+					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-fill-tile-input">Tile mặc định khi mở rộng</label>
+							<input id="fp-fill-tile-input" type="number" min="0" max="255" step="1" value="0">
+						</div>
+						<div class="inline" style="margin-top: 1.8rem;">
+							<input id="fp-clip-objects-checkbox" type="checkbox" checked>
+							<label for="fp-clip-objects-checkbox">Xóa đối tượng nằm ngoài</label>
+						</div>
+					</div>
+					<button id="fp-apply-resize-button" class="action-button" style="margin-top: 8px;">Áp dụng thay đổi</button>
+				`;
+				document.getElementById('fp-apply-resize-button')?.addEventListener('click', this.applyResizeFromUI.bind(this));
+				break;
+			case 'collision':
+				if (title) title.textContent = 'Va chạm';
+				this.floatingContent.innerHTML = `
+					<div class="inline" style="margin-bottom: 8px;">
+						<input type="checkbox" id="fp-show-collision" ${this.showCollision ? 'checked' : ''}>
+						<label for="fp-show-collision">Hiển thị lớp va chạm 0/1/2</label>
+					</div>
+					<div class="file-input-group">
+						<label for="fp-collision-mode">Chế độ hiển thị</label>
+						<select id="fp-collision-mode">
+							<option value="number" ${this.collisionMode==='number'?'selected':''}>Hiển thị số</option>
+							<option value="color" ${this.collisionMode==='color'?'selected':''}>Tô màu</option>
+						</select>
+					</div>
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-f-threshold">Ngưỡng F (chặn)</label>
+							<input id="fp-f-threshold" type="number" min="0" max="255" step="1" value="${this.fThreshold}">
+						</div>
+						<div>
+							<label for="fp-g-threshold">Ngưỡng G (nước)</label>
+							<input id="fp-g-threshold" type="number" min="0" max="255" step="1" value="${this.gThreshold}">
+						</div>
+					</div>
+				`;
+				document.getElementById('fp-show-collision')?.addEventListener('change', (e)=>{ this.showCollision = e.target.checked; this.render(); });
+				document.getElementById('fp-collision-mode')?.addEventListener('change', (e)=>{ this.collisionMode = e.target.value; this.render(); });
+				const onParamFP = ()=>{ const ft = document.getElementById('fp-f-threshold'); const gt = document.getElementById('fp-g-threshold'); this.fThreshold = parseInt(ft.value||'32',10)||32; this.gThreshold = parseInt(gt.value||'26',10)||26; this.calculateCollisionMap(); this.render(); };
+				document.getElementById('fp-f-threshold')?.addEventListener('input', onParamFP);
+				document.getElementById('fp-g-threshold')?.addEventListener('input', onParamFP);
+				break;
+			case 'log':
+				if (title) title.textContent = 'Nhật Ký';
+				this.floatingContent.innerHTML = `<div id="fp-log-entries" class="log-entries"></div>`;
+				const fpLog = document.getElementById('fp-log-entries'); if (fpLog && this.logEntriesContainer) { fpLog.innerHTML = this.logEntriesContainer.innerHTML; }
+				break;
+			case 'tile':
+				if (title) title.textContent = 'Sửa Tile';
+				this.floatingContent.innerHTML = `
+					<div class="small-muted" style="margin-bottom:8px;">Chọn tile và vẽ lên bản đồ (giữ Ctrl để pan/zoom)</div>
+					<div class="inline" style="margin-bottom:6px;">Tile đang chọn: <strong id="fp-selected-tile-id">${this.selectedTileId}</strong></div>
+					<div id="fp-tile-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 24px); gap:4px;"></div>
+				`;
+				this.populateTilePalette();
+				break;
+			case 'icon':
+				if (title) title.textContent = 'Icon';
+				this.floatingContent.innerHTML = `
+					<div class="small-muted" style="margin-bottom: 8px;">Kéo icon từ danh sách và thả vào bản đồ để thêm. Nhấn chuột phải lên icon để xóa.</div>
+					<div id="fp-icon-palette-container" style="display:grid; grid-template-columns: repeat(auto-fill, 32px); gap:6px; max-height:100%; overflow:auto;"></div>
+				`;
+				this.populateIconPalette();
+				break;
+			case 'eff':
+				if (title) title.textContent = 'Eff';
+				this.floatingContent.innerHTML = `
+					<div class="grid-2" style="gap:8px;">
+						<div>
+							<label for="fp-eff-id-input">ID eff</label>
+							<input id="fp-eff-id-input" type="number" min="0" step="1" value="0">
+						</div>
+						<div class="inline" style="gap:6px; margin-top: 1.4rem;">
+							<button id="fp-add-eff-button" class="action-button">Thêm eff</button>
+							<button id="fp-delete-eff-button" class="action-button" style="background-color:#d9534f;">Xóa eff đã chọn</button>
+						</div>
+					</div>
+					<div class="grid-2" style="gap:8px; margin-top:8px;">
+						<div>
+							<label for="fp-eff-selected-id">Cập nhật ID cho eff đã chọn</label>
+							<input id="fp-eff-selected-id" type="number" min="0" step="1" value="0">
+						</div>
+						<div class="inline" style="gap:6px; margin-top: 1.4rem;">
+							<button id="fp-update-eff-id-button" class="action-button">Cập nhật ID</button>
+						</div>
+					</div>
+					<div style="margin-top:8px;">
+						<label for="fp-eff-raw-input">Raw (nâng cao)</label>
+						<input id="fp-eff-raw-input" type="text" placeholder="0;ID;tileX;tileY;...">
+						<button id="fp-update-eff-raw-button" class="action-button" style="margin-top:6px;">Cập nhật Raw</button>
+					</div>
+					<div id="fp-eff-params" style="margin-top:8px;"></div>
+				`;
+				document.getElementById('fp-add-eff-button')?.addEventListener('click', this.handleAddEffAtCenter.bind(this));
+				document.getElementById('fp-delete-eff-button')?.addEventListener('click', this.handleDeleteSelectedEff.bind(this));
+				document.getElementById('fp-update-eff-id-button')?.addEventListener('click', this.handleUpdateSelectedEffId.bind(this));
+				document.getElementById('fp-update-eff-raw-button')?.addEventListener('click', this.handleUpdateSelectedEffRaw.bind(this));
+				this.renderEffParamEditor();
+				this.updateEffRawFieldFromSelected();
+				break;
+			case 'vgo':
+				if (title) title.textContent = 'VGO';
+				this.floatingContent.innerHTML = `
+					<div>
+						<label for="fp-vgo-name-input">Tên cổng</label>
+						<input id="fp-vgo-name-input" type="text" placeholder="Tên cổng...">
+					</div>
+					<div class="inline" style="gap: 6px; margin-top: 8px;">
+						<button id="fp-add-vgo-button" class="action-button">Thêm cổng VGO</button>
+						<button id="fp-delete-vgo-button" class="action-button" style="background-color:#d9534f;">Xóa cổng VGO đã chọn</button>
+					</div>
+					<div class="small-muted" style="margin-top: 0.5rem;">Giữ Ctrl để pan/zoom. Mũi tên hướng sẽ tự suy ra theo client.</div>
+				`;
+				document.getElementById('fp-add-vgo-button')?.addEventListener('click', this.handleAddVgoAtCenter.bind(this));
+				document.getElementById('fp-delete-vgo-button')?.addEventListener('click', this.handleDeleteSelectedVgo.bind(this));
+				const nameInput = document.getElementById('fp-vgo-name-input');
+				if (nameInput) nameInput.addEventListener('input', () => { if (this.selectedVgo) { this.selectedVgo.name = String(nameInput.value || ''); this.render(); } });
+				break;
+			case 'npc':
+				if (title) title.textContent = 'NPC';
+				this.floatingContent.innerHTML = `
+					<div class="file-input-group">
+						<label for="fp-npc-input">Tệp NPC (.dat)</label>
+						<input type="file" id="fp-npc-input" accept=".dat,.*" multiple>
+					</div>
+					<div class="inline" style="gap: 6px;">
+						<button id="fp-add-npc-button" class="action-button">Thêm NPC</button>
+						<button id="fp-edit-npc-button" class="action-button" style="background-color:#6c757d;">Sửa NPC đã chọn</button>
+						<button id="fp-save-npcs-button" class="action-button" style="background-color:#0275d8;">Lưu NPC</button>
+					</div>
+					<div class="small-muted" style="margin-top: 0.5rem;">Icon minimap: 3000+; Icon tương tác: 3500+.</div>
+				`;
+				document.getElementById('fp-npc-input')?.addEventListener('change', this.handleNpcFiles.bind(this));
+				document.getElementById('fp-add-npc-button')?.addEventListener('click', this.handleAddNpc.bind(this));
+				document.getElementById('fp-edit-npc-button')?.addEventListener('click', () => { if (this.selectedNpc) this.showNpcEditor(this.selectedNpc, false); else this.log('Chưa chọn NPC.'); });
+				document.getElementById('fp-save-npcs-button')?.addEventListener('click', this.handleSaveNpcs.bind(this));
+				break;
+			default:
+				this.floatingContent.innerHTML = '';
+		}
+	}
+
+	enablePanelDrag(panel, header) {
+		let dragging = false;
+		let startX = 0, startY = 0;
+		let panelStartLeft = 0, panelStartTop = 0;
+		header.addEventListener('mousedown', (e) => {
+			if (e.target && e.target.closest && e.target.closest('.floating-controls')) return;
+			dragging = true;
+			startX = e.clientX;
+			startY = e.clientY;
+			const rect = panel.getBoundingClientRect();
+			panelStartLeft = rect.left;
+			panelStartTop = rect.top;
+			document.addEventListener('mousemove', onMove);
+			document.addEventListener('mouseup', onUp, { once: true });
+			e.preventDefault();
+		});
+		const onMove = (e) => {
+			if (!dragging) return;
+			const dx = e.clientX - startX;
+			const dy = e.clientY - startY;
+			const containerRect = this.canvasContainer.getBoundingClientRect();
+			const newLeft = Math.min(containerRect.right - 80, Math.max(containerRect.left + 0, panelStartLeft + dx));
+			const newTop = Math.min(containerRect.bottom - 40, Math.max(containerRect.top + 0, panelStartTop + dy));
+			panel.style.left = `${newLeft - containerRect.left}px`;
+			panel.style.top = `${newTop - containerRect.top}px`;
+		};
+		const onUp = () => {
+			dragging = false;
+			document.removeEventListener('mousemove', onMove);
+		};
+	}
+
+	closeFloatingPanel() {
+		if (!this.floatingPanel) return;
+		this.canvasContainer.removeChild(this.floatingPanel);
+		this.floatingPanel = null;
+		this.floatingContent = null;
+		this.setExclusiveEditMode('none');
+		this.currentMode = 'none';
+	}
+
+	minimizeFloatingPanel() {
+		if (!this.floatingPanel) return;
+		this.floatingPanel.classList.toggle('minimized');
+	}
+
+	setExclusiveEditMode(mode) {
+		const m = (mode || 'none');
+		this.isTileEditingMode = (m === 'tile');
+		this.isIconEditingMode = (m === 'icon');
+		this.isEffEditingMode = (m === 'eff');
+		this.isVgoEditingMode = (m === 'vgo');
+		this.isNpcEditingMode = (m === 'npc');
+		const tem = document.getElementById('tile-edit-mode');
+		const iem = document.getElementById('icon-edit-mode');
+		const eem = document.getElementById('eff-edit-mode');
+		const vem = document.getElementById('vgo-edit-mode');
+		const nem = document.getElementById('npc-edit-mode');
+		if (tem) tem.checked = this.isTileEditingMode;
+		if (iem) iem.checked = this.isIconEditingMode;
+		if (eem) eem.checked = this.isEffEditingMode;
+		if (vem) vem.checked = this.isVgoEditingMode;
+		if (nem) nem.checked = this.isNpcEditingMode;
+		this.isPainting = false;
+		this.isDraggingIcon = false;
+		this.isDraggingEff = false;
+		this.isDraggingVgo = false;
+		this.isDraggingNpc = false;
+		if (!this.isIconEditingMode) this.selectedEffectObject = null;
+		if (!this.isEffEditingMode) this.selectedEff = null;
+		if (!this.isVgoEditingMode) this.selectedVgo = null;
+		if (!this.isNpcEditingMode) this.selectedNpc = null;
+		if (this.isTileEditingMode) this.canvas.style.cursor = 'crosshair';
+		else if (this.isIconEditingMode || this.isEffEditingMode || this.isVgoEditingMode || this.isNpcEditingMode) this.canvas.style.cursor = 'pointer';
+		else this.canvas.style.cursor = 'grab';
+		this.render();
+	}
+
+	async handleMapFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		this.originalMapFileName = file.name;
+		this.log(`Bắt đầu tải file map: ${file.name}`);
+		try {
+			const buffer = await file.arrayBuffer();
+			this.mapData = new MapData();
+			const reader = new BinaryReader(buffer);
+			this.log("Đang phân tích dữ liệu file map...");
+			// Đọc 2 byte đầu để hỗ trợ chỉnh header
+			try { const dv = new DataView(buffer); this.headerByte1 = dv.getUint8(0); this.headerByte2 = dv.getUint8(1); } catch {}
+			reader.seek(2);
+			this.mapData.mapName = reader.readUTF();
+			this.mapData.mapVersion = reader.readShort();
+			this.mapData.width = reader.readByte();
+			this.mapData.height = reader.readByte();
+			this.mapData.tilesetId = reader.readByte();
+			this.log(`Thông tin map:\n- Tên: ${this.mapData.mapName}\n- Kích thước: ${this.mapData.width}x${this.mapData.height}\n- Tileset ID: ${this.mapData.tilesetId}\n- Header[0..1]=(${this.headerByte1}, ${this.headerByte2})\n- Version: 0x${this.mapData.mapVersion.toString(16).toUpperCase()}`);
+			// Nếu đã có thư viện tileset, tự áp dụng theo ID map
+			if (this.tilesetLibrary && this.tilesetLibrary.main && this.tilesetLibrary.main.size > 0) {
+				this.applyTilesetById(this.mapData.tilesetId);
+			}
+			this.mapData.tileMap = [];
+			const tileData = reader.readBytes(this.mapData.width * this.mapData.height);
+			for (let y = 0; y < this.mapData.height; y++) {
+				this.mapData.tileMap.push(Array.from(tileData.slice(y * this.mapData.width, (y + 1) * this.mapData.width)));
+			}
+			this.log(`Đã đọc ${this.mapData.tileMap.length * this.mapData.width} tiles.`);
+			if (!reader.eof && reader.getInt8At(reader.offset) === -1) { reader.readByte(); }
+			if (!reader.eof) {
+				const objectBlockLength = reader.readShort();
+				const objectBlockStartOffset = reader.offset;
+				if (objectBlockStartOffset + objectBlockLength > reader.getBuffer().byteLength) {
+					this.log("CẢNH BÁO: Object block length không hợp lệ, có thể file map bị lỗi.");
+				} else {
+					const objectBlockBuffer = reader.getBuffer().slice(objectBlockStartOffset, objectBlockStartOffset + objectBlockLength);
+					const objectReader = new BinaryReader(objectBlockBuffer);
+					const numIcons = objectReader.readShort();
+					for (let i = 0; i < numIcons; i++) {
+						if (objectReader.offset + 6 > objectBlockBuffer.byteLength) break;
+						const templateId = objectReader.readShort();
+						this.mapData.effectObjects.push({ templateId: templateId, x: objectReader.readShort() * TILE_SIZE, y: objectReader.readShort() * TILE_SIZE, text: "", name: `Effect ID: ${templateId}` });
+					}
+					this.log(`Đã đọc ${this.mapData.effectObjects.length} đối tượng trang trí (Icons).`);
+					const tryParsePairs = () => {
+						const save = objectReader.offset;
+						try {
+							if (objectReader.offset + 2 > objectBlockBuffer.byteLength) return false;
+							const pairCount = objectReader.readShort();
+							if (pairCount < 0 || pairCount > 10000) { objectReader.offset = save; return false; }
+							let parsed = 0;
+							for (let i = 0; i < pairCount; i++) {
+								if (objectReader.offset + 2 > objectBlockBuffer.byteLength) throw new Error('overflow');
+								let keyLen = objectReader.readByte(); keyLen = (keyLen + 256) % 256;
+								if (objectReader.offset + keyLen > objectBlockBuffer.byteLength) throw new Error('overflow');
+								const key = this.textDecoder.decode(objectReader.readBytes(keyLen));
+								let valLen = objectReader.readByte(); valLen = (valLen + 256) % 256;
+								if (objectReader.offset + valLen > objectBlockBuffer.byteLength) throw new Error('overflow');
+								const val = this.textDecoder.decode(objectReader.readBytes(valLen));
+								if (key === 'eff') {
+									const effString = val;
+									const parts = effString.split(';');
+									if (parts.length >= 4) {
+										const id = parseInt(parts[1], 10);
+										const x = parseInt(parts[2], 10);
+										const y = parseInt(parts[3], 10);
+										if (!isNaN(id) && !isNaN(x) && !isNaN(y)) {
+											this.mapData.effData.push({ id, x: x * TILE_SIZE, y: y * TILE_SIZE, name: `Eff ID: ${id}`, text: `Eff: ${id}`, raw: effString });
+										}
+									}
+								} else if (key === 'vgo') {
+									const parts = val.split(';');
+									if (parts.length >= 4) {
+										const tx = parseInt(parts[0], 10);
+										const ty = parseInt(parts[1], 10);
+										const name = parts[2] || '';
+										const type = parseInt(parts[3], 10) || 0;
+										if (!isNaN(tx) && !isNaN(ty)) { this.mapData.vgos.push({ x: tx * TILE_SIZE, y: ty * TILE_SIZE, name, mapGoId: type, xNew: 0, yNew: 0 }); }
+									}
+								}
+								parsed++;
+							}
+							this.log(`Đã đọc ${parsed} cặp chuỗi (overlay pairs).`);
+							return true;
+						} catch (e) { objectReader.offset = save; return false; }
+					};
+					if (!tryParsePairs()) {
+						if (objectReader.offset + 2 <= objectReader.getBuffer().byteLength) {
+							this.mapData.internalVgoCount = objectReader.readShort();
+							this.log(`Đã đọc trường internal VGO count, giá trị: ${this.mapData.internalVgoCount}.`);
+						} else { this.mapData.internalVgoCount = 0; }
+						const effMagicNumber = [0x03, 0x65, 0x66, 0x66];
+						while (!objectReader.eof) {
+							const currentOffset = objectReader.offset;
+							if (currentOffset + 4 > objectReader.getBuffer().byteLength) break;
+							const isEff = objectReader.getUint8At(currentOffset) === effMagicNumber[0] && objectReader.getUint8At(currentOffset + 1) === effMagicNumber[1] && objectReader.getUint8At(currentOffset + 2) === effMagicNumber[2] && objectReader.getUint8At(currentOffset + 3) === effMagicNumber[3];
+							if (isEff) {
+								objectReader.seek(4, 'current');
+								try {
+									const dataLength = objectReader.readByte();
+									if (objectReader.offset + dataLength > objectReader.getBuffer().byteLength) break;
+									const effStringBytes = objectReader.readBytes(dataLength);
+									const effString = this.textDecoder.decode(effStringBytes);
+									const parts = effString.split(';');
+									if (parts.length >= 4) {
+										const [id, x, y] = [parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3])];
+										if (!isNaN(id) && !isNaN(x) && !isNaN(y)) { this.mapData.effData.push({ id, x: x * TILE_SIZE, y: y * TILE_SIZE, name: `Eff ID: ${id}`, text: `Eff: ${id}`, raw: effString }); }
+									}
+								} catch (e) { break; }
+							} else if (objectReader.getBuffer().byteLength - currentOffset >= 5) {
+								try {
+									const vgoX = objectReader.readShort();
+									const vgoY = objectReader.readShort();
+									const vgoType = objectReader.readByte();
+									let name = "";
+									if (vgoType === 0) { const nameLen = objectReader.readByte(); name = this.textDecoder.decode(objectReader.readBytes(nameLen)); }
+									else if (vgoType === 1) { name = objectReader.readUTF(); }
+									else { break; }
+									this.mapData.vgos.push({ x: vgoX * TILE_SIZE, y: vgoY * TILE_SIZE, name, mapGoId: vgoType + 1, xNew: 0, yNew: 0 });
+								} catch (e) { break; }
+							} else { break; }
+						}
+						this.log(`Đã đọc ${this.mapData.vgos.length} VGOs và ${this.mapData.effData.length} 'eff' blocks.`);
+					}
+					reader.seek(objectBlockStartOffset + objectBlockLength, 'start');
+				}
+			}
+			if (!reader.eof) {
+				try {
+					const vgoCount = reader.readByte();
+					if (vgoCount > 0 && vgoCount < 100) {
+						for (let i = 0; i < vgoCount; i++) {
+							const x = reader.readShort();
+							const y = reader.readShort();
+							const name = reader.readUTF();
+							this.mapData.vgos.push({ x, y, name, mapGoId: 100, xNew: 0, yNew: 0 });
+						}
+						this.log(`Đã đọc ${vgoCount} VGOs bên ngoài.`);
+					}
+				} catch (e) { /* No external VGO block */ }
+			}
+			document.getElementById('new-width-input').value = String(this.mapData.width);
+			document.getElementById('new-height-input').value = String(this.mapData.height);
+			this.saveMapButton.disabled = false;
+			const fpSaveBtn = document.getElementById('fp-save-map-button'); if (fpSaveBtn) fpSaveBtn.disabled = false;
+			this.canvas.style.display = 'block';
+			this.welcomeMessage.style.display = 'none';
+			this.calculateCollisionMap();
+			this.resetView();
+			this.render();
+			this.log(`Hoàn tất tải map '${this.mapData.mapName}'. Sẵn sàng để xem.`);
+		} catch (error) {
+			console.error("Lỗi khi phân tích file map:", error);
+			this.log(`LỖI: Không thể phân tích file map. Chi tiết trong console.`);
+		}
+	}
+
+	async handleTilesetFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		this.log(`Đang tải file tileset: ${file.name}...`);
+		this.tilesetImage = new Image();
+		this.tilesetImage.onload = () => {
+			this.log(`Tải thành công tileset '${file.name}'. Vẽ lại bản đồ.`);
+			this.populateTilePalette();
+			const panel = document.getElementById('tile-palette-panel');
+			if (panel) panel.style.display = 'block';
+			this.render();
+			// Nếu người dùng đã nhập ID-only, cập nhật ngay mapId
+			const idOnly = document.getElementById('fp-tileset-id-only');
+			if (idOnly && this.mapData) { const id = Math.max(0, parseInt(idOnly.value || '', 10) || this.mapData.tilesetId); this.applyTilesetIdOnly(id); }
+		};
+		this.tilesetImage.onerror = () => { this.log(`LỖI: Không thể tải ảnh tileset '${file.name}'.`); this.tilesetImage = null; }
+		this.tilesetImage.src = URL.createObjectURL(file);
+	}
+
+	applyTilesetIdOnly(id) {
+		if (!this.mapData) { this.log('Chưa có map để cập nhật tilesetId.'); return; }
+		const newId = id | 0;
+		if (this.mapData.tilesetId === newId) { this.log(`tilesetId đã là ${newId}.`); return; }
+		this.mapData.tilesetId = newId;
+		this.calculateCollisionMap();
+		this.render();
+		this.log(`Đã cập nhật tilesetId của map thành ${newId}. Khi lưu, byte thứ 3 sẽ là ${newId}.`);
+	}
+
+	async handleIconFiles(event) {
+		const input = event.target;
+		if (!input.files) return;
+		const files = Array.from(input.files);
+		if (files.length === 0) { this.log("Không có file icon nào được chọn."); return; }
+		this.log(`Bắt đầu tải ${files.length} file icon...`);
+		let loadedCount = 0;
+		let failedCount = 0;
+		for (const f of files) {
+			const name = f.name.replace(/\\/g,'/');
+			const base = name.substring(name.lastIndexOf('/')+1);
+			const baseNoExt = base.split('.')[0];
+			const iconId = parseInt(baseNoExt);
+			if (!isNaN(iconId)) {
+				const img = new Image();
+				img.src = URL.createObjectURL(f);
+				try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; }); this.effectIcons.set(iconId, img); loadedCount++; }
+				catch { failedCount++; }
+			} else { failedCount++; }
+		}
+		this.log(`Hoàn tất tải icons. Thành công: ${loadedCount}, Thất bại: ${failedCount}. Vẽ lại bản đồ.`);
+		this.populateIconPalette();
+		const pnl = document.getElementById('icon-palette-panel');
+		if (pnl) pnl.style.display = 'block';
+		this.render();
+	}
+	
+	async handleSaveMap() {
+		if (!this.mapData) { this.log("LỖI: Không có dữ liệu map để lưu."); return; }
+		const width = (this.mapData.width | 0);
+		const height = (this.mapData.height | 0);
+		const k = (this.mapData.tilesetId | 0) & 0xFF;
+		if (width <= 0 || height <= 0 || width > 255 || height > 255) { this.log(`LỖI: Kích thước không hợp lệ (w=${width}, h=${height}). Phải nằm trong [1..255].`); return; }
+		this.log(`Xuất định dạng client (CMD 12)... (w=${width}, h=${height}, k=${k})`);
+		try {
+			const clampByte = (v) => Math.max(0, Math.min(255, v | 0));
+			const tileBlobWriter = new BinaryWriter();
+			tileBlobWriter.writeByte(width);
+			tileBlobWriter.writeByte(height);
+			tileBlobWriter.writeByte(k);
+			for (let y = 0; y < height; y++) {
+				const row = (this.mapData.tileMap[y] || []).slice(0, width);
+				while (row.length < width) row.push(0);
+				for (let x = 0; x < width; x++) tileBlobWriter.writeByte(clampByte(row[x]));
+			}
+			const tileBlob = new Uint8Array(tileBlobWriter.getBuffer());
+			const overlayWriter = new BinaryWriter();
+			const icons = Array.isArray(this.mapData.effectObjects) ? this.mapData.effectObjects : [];
+			const validIcons = icons.filter(o => Number.isFinite(o.templateId) && (o.templateId|0) >= 0);
+			overlayWriter.writeShort(validIcons.length);
+			for (const obj of validIcons) {
+				let xTile = Math.round((obj.x || 0) / TILE_SIZE);
+				let yTile = Math.round((obj.y || 0) / TILE_SIZE);
+				if (xTile < 0) xTile = 0; if (xTile >= width) xTile = width - 1;
+				if (yTile < 0) yTile = 0; if (yTile >= height) yTile = height - 1;
+				overlayWriter.writeShort((obj.templateId | 0));
+				overlayWriter.writeShort(xTile);
+				overlayWriter.writeShort(yTile);
+			}
+			const encoder = new TextEncoder();
+			const internalVgos = (Array.isArray(this.mapData.vgos) ? this.mapData.vgos : []).filter(v => (v.mapGoId|0) < 100);
+			const effs = Array.isArray(this.mapData.effData) ? this.mapData.effData : [];
+			const pairs = [];
+			for (const e of effs) { if (!e || !e.raw) continue; const keyBytes = encoder.encode('eff'); const valBytes = encoder.encode(String(e.raw)); if (keyBytes.length <= 255 && valBytes.length <= 255) pairs.push([keyBytes, valBytes]); }
+			for (const v of internalVgos) {
+				const keyBytes = encoder.encode('vgo');
+				const xTile = Math.max(0, Math.min(width - 1, Math.round((v.x || 0) / TILE_SIZE)));
+				const yTile = Math.max(0, Math.min(height - 1, Math.round((v.y || 0) / TILE_SIZE)));
+				const type = Math.max(0, (v.mapGoId|0));
+				const name = String(v.name || '');
+				const valBytes = encoder.encode(`${xTile};${yTile};${name};${type}`);
+				if (keyBytes.length <= 255 && valBytes.length <= 255) pairs.push([keyBytes, valBytes]);
+			}
+			overlayWriter.writeShort(pairs.length);
+			for (const [keyBytes, valBytes] of pairs) { overlayWriter.writeByte(keyBytes.length); overlayWriter.writeBytes(keyBytes); overlayWriter.writeByte(valBytes.length); overlayWriter.writeBytes(valBytes); }
+			const overlayBlob = new Uint8Array(overlayWriter.getBuffer());
+			const out = new BinaryWriter();
+			// Ghi 2 byte header tuỳ biến
+			out.writeByte(this.headerByte1 | 0);
+			out.writeByte(this.headerByte2 | 0);
+			out.writeUTF(this.mapData.mapName || "");
+			out.writeShort(tileBlob.length);
+			out.writeBytes(tileBlob);
+			out.writeByte(-1);
+			out.writeShort(overlayBlob.length);
+			out.writeBytes(overlayBlob);
+			{
+				const exVgos = (Array.isArray(this.mapData.vgos) ? this.mapData.vgos : []).filter(v => (v.mapGoId|0) >= 100);
+				const poiCount = Math.min(100, exVgos.length);
+				out.writeByte(poiCount);
+				for (let i = 0; i < poiCount; i++) { const v = exVgos[i]; const px = Math.max(0, Math.min(0x7FFF, v.x|0)); const py = Math.max(0, Math.min(0x7FFF, v.y|0)); out.writeShort(px); out.writeShort(py); out.writeUTF(String(v.name || '')); }
+			}
+			out.writeByte(-1);
+			const blob = new Blob([out.getBuffer()], { type: 'application/octet-stream' });
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			const downloadName = this.originalMapFileName || `${this.mapData.tilesetId || 'map'}.bin`;
+			a.download = downloadName;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(a.href);
+			this.log(`Thành công! Xuất client: tileBlob=${tileBlob.length}B, overlay=${overlayBlob.length}B.`);
+		} catch (error) {
+			this.log(`LỖI NGHIÊM TRỌNG khi xuất client: ${error}`);
+			console.error("Lỗi khi xuất định dạng client:", error);
+		}
+	}
+
+	applyResizeFromUI() {
+		if (!this.mapData) { this.log("LỖI: Chưa có map."); return; }
+		const wEl = document.getElementById('fp-new-width-input') || document.getElementById('new-width-input');
+		const hEl = document.getElementById('fp-new-height-input') || document.getElementById('new-height-input');
+		const aEl = document.getElementById('fp-anchor-select') || document.getElementById('anchor-select');
+		const fEl = document.getElementById('fp-fill-tile-input') || document.getElementById('fill-tile-input');
+		const cEl = document.getElementById('fp-clip-objects-checkbox') || document.getElementById('clip-objects-checkbox');
+		const newW = Math.max(1, parseInt(wEl?.value || '0', 10));
+		const newH = Math.max(1, parseInt(hEl?.value || '0', 10));
+		const anchor = 'top-left'; // force top-left for client compatibility
+		const fillTile = Math.max(0, Math.min(255, parseInt(fEl?.value || '0', 10)));
+		const clip = !!(cEl && cEl.checked);
+		this.resizeMap(newW, newH, anchor, fillTile, clip);
+	}
+
+	resizeMap(newWidth, newHeight, anchor, fillTileId, clipOutside) {
+		const oldWidth = this.mapData.width;
+		const oldHeight = this.mapData.height;
+		let offsetX = 0, offsetY = 0;
+		if (anchor === 'center') { offsetX = Math.floor((newWidth - oldWidth) / 2); offsetY = Math.floor((newHeight - oldHeight) / 2); }
+		else if (anchor === 'bottom-right') { offsetX = newWidth - oldWidth; offsetY = newHeight - oldHeight; }
+		const newTileMap = new Array(newHeight);
+		for (let y = 0; y < newHeight; y++) {
+			const row = new Array(newWidth);
+			for (let x = 0; x < newWidth; x++) {
+				const srcX = x - offsetX;
+				const srcY = y - offsetY;
+				row[x] = (srcX >= 0 && srcX < oldWidth && srcY >= 0 && srcY < oldHeight) ? (this.mapData.tileMap[srcY][srcX] | 0) : (fillTileId | 0);
+			}
+			newTileMap[y] = row;
+		}
+		const dx = offsetX * TILE_SIZE;
+		const dy = offsetY * TILE_SIZE;
+		const maxX = newWidth * TILE_SIZE;
+		const maxY = newHeight * TILE_SIZE;
+		const inBounds = (x, y) => x >= 0 && y >= 0 && x < maxX && y < maxY;
+		this.mapData.effectObjects = this.mapData.effectObjects.map(o => ({ ...o, x: o.x + dx, y: o.y + dy })).filter(o => !clipOutside || inBounds(o.x, o.y));
+		this.mapData.effData = this.mapData.effData.map(o => ({ ...o, x: o.x + dx, y: o.y + dy })).filter(o => !clipOutside || inBounds(o.x, o.y));
+		this.mapData.vgos = this.mapData.vgos.map(v => ({ ...v, x: v.x + dx, y: v.y + dy })).filter(v => !clipOutside || inBounds(v.x, v.y));
+		this.mapData.npcs = this.mapData.npcs.map(n => ({ ...n, x: n.x + dx, y: n.y + dy })).filter(n => !clipOutside || inBounds(n.x, n.y));
+		this.mapData.tileMap = newTileMap;
+		this.mapData.width = newWidth;
+		this.mapData.height = newHeight;
+		this.calculateCollisionMap();
+		this.log(`Đã thay đổi kích thước: ${oldWidth}x${oldHeight} -> ${newWidth}x${newHeight}. Anchor: ${anchor}. Offset (tile): (${offsetX}, ${offsetY}).`);
+		this.resetView();
+		this.render();
+	}
+
+	calculateCollisionMap() {
+		if (!this.mapData || !this.mapData.tileMap.length) { if (this.mapData) this.mapData.collisionMap = []; return; }
+		const { width, height, tilesetId, tileMap } = this.mapData;
+		const raw = Array(height).fill(null).map(() => Array(width).fill(0));
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const id = tileMap[y][x] | 0;
+				let c = 0;
+				if (tilesetId < 9) { if (id >= this.fThreshold || id === 0) c = 1; else if (id >= this.gThreshold) c = 2; }
+				else { if (id >= this.fThreshold || id === 0) c = 1; }
+				raw[y][x] = c;
+			}
+		}
+		const fin = raw.map(r => r.slice());
+		const q = [];
+		for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (raw[y][x] === 2) q.push({x,y});
+		const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+		const lakeBedIds = new Set([32,33,34,35]);
+		while (q.length) {
+			const { x, y } = q.shift();
+			for (const [dx, dy] of dirs) {
+				const nx = x + dx, ny = y + dy;
+				if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+				if (fin[ny][nx] === 1 && lakeBedIds.has((tileMap[ny][nx] | 0))) { fin[ny][nx] = 2; q.push({ x: nx, y: ny }); }
+			}
+		}
+		this.mapData.collisionMap = fin;
+		this.log("Đã cập nhật bản đồ va chạm (0/1/2).");
+	}
+
+	resetView() {
+		if (!this.mapData) return;
+		this.scale = 1.0;
+		const containerWidth = this.canvasContainer.clientWidth;
+		const containerHeight = this.canvasContainer.clientHeight;
+		const mapPixelWidth = this.mapData.width * TILE_SIZE;
+		const mapPixelHeight = this.mapData.height * TILE_SIZE;
+		this.scale = Math.min(containerWidth / mapPixelWidth, containerHeight / mapPixelHeight, 1.0) * 0.95;
+		this.panX = (containerWidth - mapPixelWidth * this.scale) / 2;
+		this.panY = (containerHeight - mapPixelHeight * this.scale) / 2;
+		this.log(`View đã reset. Scale: ${this.scale.toFixed(2)}, Pan: (${this.panX.toFixed(0)}, ${this.panY.toFixed(0)})`);
+	}
+
+	handleWheel(event) {
+		if (!this.mapData) return;
+		event.preventDefault();
+		if (!this.isCtrlDown && (this.isTileEditingMode || this.isIconEditingMode || this.isEffEditingMode || this.isVgoEditingMode || this.isNpcEditingMode)) return;
+		const rect = this.canvas.getBoundingClientRect();
+		const mouseX = event.clientX - rect.left;
+		const mouseY = event.clientY - rect.top;
+		const zoomFactor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+		const newScale = Math.max(0.1, Math.min(this.scale * zoomFactor, 10.0));
+		this.panX = mouseX - (mouseX - this.panX) * (newScale / this.scale);
+		this.panY = mouseY - (mouseY - this.panY) * (newScale / this.scale);
+		this.scale = newScale;
+		this.render();
+	}
+
+	handleMouseDown(event) {
+		if (!this.mapData) return;
+		if (event.button !== 0) return;
+		// Dismiss NPC interaction dialog if open and clicked outside
+		const dialog = document.getElementById('npc-interaction-dialog');
+		if (dialog && !dialog.contains(event.target)) { this.hideNpcDialog(); }
+		const rect = this.canvas.getBoundingClientRect();
+		const sx = event.clientX - rect.left;
+		const sy = event.clientY - rect.top;
+		const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+		if (this.isCtrlDown) { this.isPanning = true; }
+		if (this.isTileEditingMode && !this.isCtrlDown) { this.isPainting = true; this.paintTileAt(mx, my); return; }
+		if (this.isVgoEditingMode && !this.isCtrlDown) {
+			const vgoHit = this.hitTestVgo(mx, my);
+			if (vgoHit) { this.selectedVgo = vgoHit; this.isDraggingVgo = true; const nameInput = document.getElementById('fp-vgo-name-input') || document.getElementById('vgo-name-input'); if (nameInput) nameInput.value = String(vgoHit.name || ''); this.render(); this.log(`Đã chọn VGO '${vgoHit.name || ''}'.`); }
+			else { this.selectedVgo = null; this.render(); }
+			return;
+		}
+		if (this.isEffEditingMode && !this.isCtrlDown) {
+			const effHit = this.hitTestEff(mx, my);
+			if (effHit) { this.selectedEff = effHit; this.isDraggingEff = true; const idInput = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (idInput) idInput.value = String(effHit.id ?? 0); const rawInput = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawInput) rawInput.value = effHit.raw ?? this.buildEffRawFromObj(effHit); this.renderEffParamEditor(); this.updateEffRawFieldFromSelected(); this.render(); this.log(`Đã chọn eff ID ${effHit.id ?? '?'}.`); }
+			else { this.selectedEff = null; this.renderEffParamEditor(); this.render(); }
+			return;
+		}
+		if (this.isIconEditingMode && !this.isCtrlDown) {
+			const hit = this.hitTestEffectObject(mx, my);
+			if (hit) { this.selectedEffectObject = hit; this.isDraggingIcon = true; this.render(); this.log(`Đã chọn icon trang trí ID ${hit.templateId}.`); }
+			else { this.selectedEffectObject = null; this.render(); }
+			return;
+		}
+		if (this.isNpcEditingMode && !this.isCtrlDown) {
+			const npcHit = this.hitTestNpc(mx, my);
+			if (npcHit) { this.selectedNpc = npcHit; this.isDraggingNpc = true; this.render(); this.log(`Đã chọn NPC '${npcHit.name}'.`); }
+			else { this.selectedNpc = null; this.render(); }
+			return;
+		}
+		this.isPanning = true;
+		this.lastMouseX = event.clientX;
+		this.lastMouseY = event.clientY;
+		this.canvas.classList.add('grabbing');
+	}
+
+	handleMouseMove(event) {
+		const rect = this.canvas.getBoundingClientRect();
+		const sx = event.clientX - rect.left;
+		const sy = event.clientY - rect.top;
+		const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+		if (this.isTileEditingMode && this.isPainting && !this.isCtrlDown) { this.paintTileAt(mx, my); return; }
+		if (this.isEffEditingMode && this.selectedEff && this.isDraggingEff && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEff.x = Math.round(mx); this.selectedEff.y = Math.round(my); const tx = Math.max(0, Math.round(this.selectedEff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(this.selectedEff.y / TILE_SIZE)); this.selectedEff.raw = this.updateEffRawWithXY(this.selectedEff.raw, tx, ty); this.renderEffParamEditor(); this.updateEffRawFieldFromSelected(); this.render(); return; }
+		if (this.isVgoEditingMode && this.selectedVgo && this.isDraggingVgo && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedVgo.x = Math.round(mx); this.selectedVgo.y = Math.round(my); this.render(); return; }
+		if (this.isIconEditingMode && this.selectedEffectObject && this.isDraggingIcon && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedEffectObject.x = Math.round(mx); this.selectedEffectObject.y = Math.round(my); this.render(); return; }
+		if (this.isNpcEditingMode && this.selectedNpc && this.isDraggingNpc && !this.isCtrlDown) { if (!this.dragStartedForUndo) { this.pushUndoSnapshot(); this.dragStartedForUndo = true; } this.selectedNpc.x = Math.round(mx); this.selectedNpc.y = Math.round(my); this.render(); return; }
+		if (!this.isPanning) return;
+		const dx = event.clientX - this.lastMouseX;
+		const dy = event.clientY - this.lastMouseY;
+		this.panX += dx;
+		this.panY += dy;
+		this.lastMouseX = event.clientX;
+		this.lastMouseY = event.clientY;
+		this.render();
+	}
+	
+	handleMouseUp() {
+		this.isPainting = false;
+		this.isPanning = false;
+		this.isDraggingIcon = false;
+		this.isDraggingEff = false;
+		this.isDraggingVgo = false;
+		this.isDraggingNpc = false;
+		this.dragStartedForUndo = false;
+		this.canvas.classList.remove('grabbing');
+	}
+
+	render() {
+		requestAnimationFrame(() => {
+			if (!this.mapData) return;
+			this.canvas.width = this.canvasContainer.clientWidth;
+			this.canvas.height = this.canvasContainer.clientHeight;
+			this.ctx.save();
+			this.ctx.imageSmoothingEnabled = false;
+			this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			this.ctx.translate(this.panX, this.panY);
+			this.ctx.scale(this.scale, this.scale);
+			this.drawTileMap();
+			this.drawCollisionLayer();
+			this.drawObjects();
+			this.ctx.restore();
+		});
+	}
+	
+	drawTileMap() {
+		if (!this.mapData) return;
+		if (!this.tilesetImage) {
+			this.ctx.strokeStyle = '#555';
+			this.ctx.lineWidth = 1 / this.scale;
+			for (let y = 0; y < this.mapData.height; y++) { for (let x = 0; x < this.mapData.width; x++) { this.ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE); } }
+			return;
+		}
+		const tilesetCols = this.tilesetImage.width / TILE_SIZE;
+		for (let y = 0; y < this.mapData.height; y++) {
+			for (let x = 0; x < this.mapData.width; x++) {
+				const tileId = (this.mapData.tileMap[y][x] | 0) - 1;
+				if (tileId < 0) continue;
+				const sx = (tileId % tilesetCols) * TILE_SIZE;
+				const sy = Math.floor(tileId / tilesetCols) * TILE_SIZE;
+				this.ctx.drawImage(this.tilesetImage, sx, sy, TILE_SIZE, TILE_SIZE, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+			}
+		}
+	}
+
+	drawCollisionLayer() {
+		if (!this.showCollision || !this.mapData || !this.mapData.collisionMap.length) return;
+		const cm = this.mapData.collisionMap;
+		for (let y = 0; y < cm.length; y++) {
+			for (let x = 0; x < cm[y].length; x++) {
+				const c = cm[y][x];
+				const rectX = x * TILE_SIZE;
+				const rectY = y * TILE_SIZE;
+				if (this.collisionMode === 'color') {
+					if (c === 1) { this.ctx.fillStyle = 'rgba(239, 68, 68, 0.4)'; this.ctx.fillRect(rectX, rectY, TILE_SIZE, TILE_SIZE); }
+					else if (c === 2) { this.ctx.fillStyle = 'rgba(59, 130, 246, 0.4)'; this.ctx.fillRect(rectX, rectY, TILE_SIZE, TILE_SIZE); }
+				} else {
+					const centerX = rectX + TILE_SIZE / 2;
+					const centerY = rectY + TILE_SIZE / 2;
+					this.ctx.font = `bold ${12 / this.scale}px sans-serif`;
+					this.ctx.textAlign = 'center';
+					this.ctx.textBaseline = 'middle';
+					this.ctx.lineWidth = 3 / this.scale;
+					if (c === 1) { this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'; this.ctx.fillStyle = '#fca5a5'; }
+					else if (c === 2) { this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'; this.ctx.fillStyle = '#93c5fd'; }
+					else { this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'; this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; }
+					this.ctx.strokeText(String(c), centerX, centerY);
+					this.ctx.fillText(String(c), centerX, centerY);
+				}
+			}
+		}
+	}
+
+			drawObjects() {
+		if (!this.mapData) return;
+		const allObjects = [ ...this.mapData.effectObjects, ...this.mapData.vgos, ...this.mapData.effData, ...this.mapData.npcs ].sort((a,b) => a.y - b.y);
+		allObjects.forEach(obj => {
+			if (!this.showOverlays && (("templateId" in obj) || ("raw" in obj) || ("npcId" in obj))) return;
+			if ('templateId' in obj) this.drawEffect(obj);
+			else if ('mapGoId' in obj) this.drawVgo(obj);
+			else if ('raw' in obj) this.drawEff(obj);
+			else if ('npcId' in obj) this.drawNpc(obj);
+		});
+		if (this.isEffEditingMode && this.selectedEff && this.showOverlays) { this.highlightSelection(this.selectedEff.x, this.selectedEff.y, TILE_SIZE, TILE_SIZE); }
+	}
+
+	highlightSelection(x, y, w, h) {
+		this.ctx.save();
+		this.ctx.lineWidth = 2 / this.scale;
+		this.ctx.strokeStyle = '#ffd700';
+		this.ctx.setLineDash([6 / this.scale, 4 / this.scale]);
+		this.ctx.strokeRect(x, y, w, h);
+		this.ctx.restore();
+	}
+
+	drawVgo(vgo) {
+		const centerX = vgo.x + TILE_SIZE / 2;
+		const centerY = vgo.y + TILE_SIZE / 2;
+		this.ctx.beginPath();
+		this.ctx.arc(centerX, centerY, TILE_SIZE / 2, 0, 2 * Math.PI);
+		this.ctx.fillStyle = 'rgba(59, 130, 246, 0.7)';
+		this.ctx.fill();
+		this.ctx.strokeStyle = (this.isVgoEditingMode && this.selectedVgo === vgo) ? '#ffd700' : '#2563EB';
+		this.ctx.lineWidth = 1.5 / this.scale;
+		this.ctx.stroke();
+		if (this.isVgoEditingMode && this.mapData) { const dir = this.inferVgoDirection(vgo); const angle = this.directionAngle(dir); const alpha = 0.6 + 0.4 * Math.abs(Math.sin(Date.now() / 300)); this.ctx.save(); this.ctx.globalAlpha = alpha; this.drawArrow(centerX, centerY, angle); this.ctx.restore(); }
+		if (vgo.name) { this.ctx.fillStyle = '#ffffff'; this.ctx.font = `bold ${11 / this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'bottom'; this.ctx.strokeStyle = 'black'; this.ctx.lineWidth = 2.5 / this.scale; const textY = vgo.y - (4 / this.scale); this.ctx.strokeText(vgo.name, centerX, textY); this.ctx.fillText(vgo.name, centerX, textY); }
+	}
+	
+	drawEff(eff) {
+		const isSelected = this.selectedEff === eff;
+		this.ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
+		this.ctx.strokeStyle = isSelected ? '#ffd700' : '#22c55e';
+		this.ctx.lineWidth = 1 / this.scale;
+		this.ctx.fillRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
+		this.ctx.strokeRect(eff.x, eff.y, TILE_SIZE, TILE_SIZE);
+		if (eff.text) { this.ctx.fillStyle = '#ffffff'; this.ctx.font = `bold ${14 / this.scale}px sans-serif`; this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle'; this.ctx.strokeStyle = 'black'; this.ctx.lineWidth = 3 / this.scale; const textX = eff.x + TILE_SIZE / 2; const textY = eff.y + TILE_SIZE / 2; this.ctx.strokeText(eff.text, textX, textY); this.ctx.fillText(eff.text, textX, textY); }
+	}
+	
+			drawEffect(effect) {
+			const icon = this.effectIcons.get(effect.templateId);
+			if (icon && icon.complete) {
+				const drawX = effect.x + (TILE_SIZE - icon.width) / 2;
+				const drawY = effect.y + (TILE_SIZE - icon.height) / 2;
+				this.ctx.drawImage(icon, drawX, drawY, icon.width, icon.height);
+			} else {
+				this.ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+				this.ctx.strokeStyle = '#cccc00';
+				this.ctx.lineWidth = 1 / this.scale;
+				this.ctx.fillRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+				this.ctx.strokeRect(effect.x, effect.y, TILE_SIZE, TILE_SIZE);
+			}
+			if (this.isIconEditingMode && this.selectedEffectObject === effect) {
+				const w = (icon && icon.complete) ? icon.width : TILE_SIZE;
+				const h = (icon && icon.complete) ? icon.height : TILE_SIZE;
+				const x = (icon && icon.complete) ? (effect.x + (TILE_SIZE - icon.width) / 2) : effect.x;
+				const y = (icon && icon.complete) ? (effect.y + (TILE_SIZE - icon.height) / 2) : effect.y;
+				this.highlightSelection(x, y, w, h);
+			}
+		}
+
+	// Tile palette & editing
+	populateTilePalette() {
+		try {
+			if (!this.tilesetImage) return;
+			const container = document.getElementById('fp-tile-palette-container') || document.getElementById('tile-palette-container');
+			const selectedSpan = document.getElementById('fp-selected-tile-id') || document.getElementById('selected-tile-id');
+			if (!container || !selectedSpan) return;
+			container.innerHTML = '';
+			const cols = Math.floor(this.tilesetImage.width / TILE_SIZE);
+			const rows = Math.floor(this.tilesetImage.height / TILE_SIZE);
+			const total = cols * rows;
+			const makeCanvas = (w,h) => { const c = document.createElement('canvas'); c.width=w; c.height=h; c.style.imageRendering='pixelated'; return c; };
+			for (let i = 0; i < total; i++) {
+				const tileId = i + 1;
+				const c = makeCanvas(TILE_SIZE, TILE_SIZE);
+				const ctx = c.getContext('2d');
+				ctx.imageSmoothingEnabled = false;
+				const sx = (i % cols) * TILE_SIZE;
+				const sy = Math.floor(i / cols) * TILE_SIZE;
+				ctx.drawImage(this.tilesetImage, sx, sy, TILE_SIZE, TILE_SIZE, 0, 0, TILE_SIZE, TILE_SIZE);
+				c.style.border = '1px solid #333';
+				c.style.cursor = 'pointer';
+				c.title = String(tileId);
+				c.addEventListener('click', () => { this.selectedTileId = tileId; selectedSpan.textContent = String(tileId); });
+				container.appendChild(c);
+			}
+		} catch {}
+	}
+
+	screenToMapCoords(screenX, screenY) { return { x: (screenX - this.panX) / this.scale, y: (screenY - this.panY) / this.scale }; }
+
+	paintTileAt(mx, my) {
+		if (!this.mapData) return;
+		const tx = Math.floor(mx / TILE_SIZE);
+		const ty = Math.floor(my / TILE_SIZE);
+		if (tx < 0 || ty < 0 || tx >= this.mapData.width || ty >= this.mapData.height) return;
+		if ((this.mapData.tileMap[ty][tx] | 0) === this.selectedTileId) return;
+		this.pushUndoSnapshot();
+		this.mapData.tileMap[ty][tx] = this.selectedTileId | 0;
+		this.calculateCollisionMap();
+		this.render();
+	}
+
+	// Icon editing helpers
+	hitTestEffectObject(mx, my) {
+		if (!this.mapData) return null;
+		for (let i = this.mapData.effectObjects.length - 1; i >= 0; i--) {
+			const obj = this.mapData.effectObjects[i];
+			const w = TILE_SIZE, h = TILE_SIZE;
+			if (mx >= obj.x && mx <= obj.x + w && my >= obj.y && my <= obj.y + h) return obj;
+		}
+		return null;
+	}
+
+	// VGO editing helpers
+	hitTestVgo(mx, my) {
+		if (!this.mapData) return null;
+		for (let i = this.mapData.vgos.length - 1; i >= 0; i--) {
+			const v = this.mapData.vgos[i];
+			const cx = v.x + TILE_SIZE / 2;
+			const cy = v.y + TILE_SIZE / 2;
+			const dx = mx - cx;
+			const dy = my - cy;
+			if (dx*dx + dy*dy <= (TILE_SIZE/2)*(TILE_SIZE/2)) return v;
+		}
+		return null;
+	}
+	
+	hitTestNpc(mx, my) {
+		if (!this.mapData) return null;
+		for (let i = this.mapData.npcs.length - 1; i >= 0; i--) {
+			const npc = this.mapData.npcs[i];
+			const icon = this.effectIcons.get(3000 + (npc.iconMiniMap | 0));
+			let w = TILE_SIZE, h = TILE_SIZE;
+			if (icon && icon.complete) { const r = this.getIconFrameRect(icon); w = r.sw; h = r.sh; }
+			if (mx >= npc.x && mx <= npc.x + w && my >= npc.y && my <= npc.y + h) return npc;
+		}
+		return null;
+	}
+
+	handleAddVgoAtCenter() {
+		if (!this.mapData) return;
+		const nameEl = document.getElementById('fp-vgo-name-input') || document.getElementById('vgo-name-input');
+		const name = String(nameEl?.value || '');
+		const type = 100;
+		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+		const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+		const tx = Math.max(0, Math.round(cx / TILE_SIZE));
+		const ty = Math.max(0, Math.round(cy / TILE_SIZE));
+		this.pushUndoSnapshot();
+		const vgo = { x: tx * TILE_SIZE, y: ty * TILE_SIZE, name, mapGoId: type, xNew: 0, yNew: 0 };
+		this.mapData.vgos.push(vgo);
+		this.selectedVgo = vgo;
+		this.render();
+		this.log(`Đã thêm VGO '${name}' (type=${type}) tại giữa màn hình.`);
+	}
+
+
+	handleDeleteSelectedVgo() {
+		if (!this.mapData) return;
+		if (!this.selectedVgo) { this.log('Chưa chọn VGO nào. Bật chế độ sửa VGO và click vào cổng.'); return; }
+		const idx = this.mapData.vgos.indexOf(this.selectedVgo);
+		if (idx >= 0) { this.pushUndoSnapshot(); const name = this.selectedVgo.name || ''; this.mapData.vgos.splice(idx, 1); this.selectedVgo = null; this.render(); this.log(`Đã xóa VGO '${name}'.`); }
+	}
+
+	// Eff editing helpers
+	hitTestEff(mx, my) {
+		if (!this.mapData) return null;
+		for (let i = this.mapData.effData.length - 1; i >= 0; i--) {
+			const eff = this.mapData.effData[i];
+			const w = TILE_SIZE, h = TILE_SIZE;
+			if (mx >= eff.x && mx <= eff.x + w && my >= eff.y && my <= eff.y + h) return eff;
+		}
+		return null;
+	}
+
+	buildEffRawFromObj(eff) { const id = Number.isFinite(eff.id) ? eff.id : 0; const tx = Math.max(0, Math.round(eff.x / TILE_SIZE)); const ty = Math.max(0, Math.round(eff.y / TILE_SIZE)); return `0;${id};${tx};${ty};0;0;0;0`; }
+	updateEffRawWithXY(raw, tx, ty) { try { const parts = String(raw ?? '').split(';'); while (parts.length < 8) parts.push('0'); parts[2] = String(tx); parts[3] = String(ty); return parts.join(';'); } catch { return raw; } }
+
+	renderEffParamEditor() {
+		const container = document.getElementById('fp-eff-params');
+		if (!container) return;
+		container.innerHTML = '';
+		const eff = this.selectedEff;
+		if (!eff) { container.innerHTML = '<div class="small-muted">Chưa chọn eff nào. Chọn eff trên bản đồ để sửa.</div>'; return; }
+		const labels = ['type','id','tileX','tileY','p4','p5','p6','p7'];
+		const parts = String(eff.raw ?? '').split(';');
+		while (parts.length < 8) parts.push('0');
+		const grid = document.createElement('div');
+		grid.className = 'grid-2';
+		grid.style.gap = '8px';
+		labels.forEach((name, idx) => {
+			const wrap = document.createElement('div');
+			const lab = document.createElement('label'); lab.textContent = name; wrap.appendChild(lab);
+			const input = document.createElement('input'); input.type = 'number'; input.step = '1'; input.value = parts[idx] ?? '0';
+			input.addEventListener('input', () => {
+				parts[idx] = String(parseInt(input.value || '0', 10) || 0);
+				eff.raw = parts.join(';');
+				const newId = parseInt(parts[1] || '0', 10) || 0;
+				const tx = parseInt(parts[2] || '0', 10) || 0;
+				const ty = parseInt(parts[3] || '0', 10) || 0;
+				eff.id = newId; eff.name = `Eff ID: ${newId}`; eff.text = `Eff: ${newId}`; eff.x = tx * TILE_SIZE; eff.y = ty * TILE_SIZE;
+				const idBox = document.getElementById('fp-eff-selected-id') || document.getElementById('eff-selected-id'); if (idBox) idBox.value = String(newId);
+				this.updateEffRawFieldFromSelected();
+				this.render();
+			});
+			wrap.appendChild(input); grid.appendChild(wrap);
+		});
+		container.appendChild(grid);
+	}
+
+	updateEffRawFieldFromSelected() {
+		const rawEl = document.getElementById('fp-eff-raw-input') || document.getElementById('eff-raw-input');
+		if (!rawEl) return;
+		rawEl.value = this.selectedEff ? (this.selectedEff.raw ?? this.buildEffRawFromObj(this.selectedEff)) : '';
+	}
+
+	handleAddIconAtCenter() {
+		if (!this.mapData) return;
+		const idInput = document.getElementById('fp-icon-id-input') || document.getElementById('icon-id-input');
+		const iconId = Math.max(0, Math.min(999, parseInt((idInput?.value)||'0', 10) || 0));
+		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+		const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+		this.pushUndoSnapshot();
+		const obj = { templateId: iconId, x: Math.round(cx), y: Math.round(cy), text: '', name: `Effect ID: ${iconId}` };
+		this.mapData.effectObjects.push(obj);
+		this.selectedEffectObject = obj;
+		this.render();
+		this.log(`Đã thêm icon ${iconId} tại giữa màn hình.`);
+	}
+
+	handleAddEffAtCenter() {
+		if (!this.mapData) return;
+		const idInput = document.getElementById('fp-eff-id-input') || document.getElementById('eff-id-input');
+		const effId = Math.max(0, parseInt((idInput?.value)||'0', 10) || 0);
+		const cx = (this.canvas.width / 2 - this.panX) / this.scale;
+		const cy = (this.canvas.height / 2 - this.panY) / this.scale;
+		const tx = Math.max(0, Math.round(cx / TILE_SIZE));
+		const ty = Math.max(0, Math.round(cy / TILE_SIZE));
+		this.pushUndoSnapshot();
+		const eff = { id: effId, x: tx * TILE_SIZE, y: ty * TILE_SIZE, name: `Eff ID: ${effId}`, text: `Eff: ${effId}`, raw: `0;${effId};${tx};${ty};0;0;0;0` };
+		this.mapData.effData.push(eff);
+		this.selectedEff = eff;
+		const sid = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (sid) sid.value = String(effId);
+		const rawEl = document.getElementById('eff-raw-input') || document.getElementById('fp-eff-raw-input'); if (rawEl) rawEl.value = eff.raw;
+		this.render();
+		this.log(`Đã thêm eff ${effId} tại giữa màn hình.`);
+	}
+
+	handleDeleteSelectedEff() {
+		if (!this.mapData) return;
+		if (!this.selectedEff) { this.log('Chưa chọn eff nào. Bật chế độ sửa eff và click vào eff.'); return; }
+		const idx = this.mapData.effData.indexOf(this.selectedEff);
+		if (idx >= 0) { this.pushUndoSnapshot(); const id = this.selectedEff.id; this.mapData.effData.splice(idx, 1); this.selectedEff = null; this.render(); this.log(`Đã xóa eff ${id}.`); }
+	}
+
+	handleUpdateSelectedEffId() {
+		if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật ID.'); return; }
+		const sid = document.getElementById('fp-eff-selected-id') || document.getElementById('eff-selected-id');
+		const newId = Math.max(0, parseInt((sid?.value)||'0', 10) || 0);
+		this.pushUndoSnapshot();
+		this.selectedEff.id = newId;
+		this.selectedEff.name = `Eff ID: ${newId}`;
+		this.selectedEff.text = `Eff: ${newId}`;
+		const parts = String(this.selectedEff.raw ?? '').split(';'); while (parts.length < 2) parts.push('0'); parts[1] = String(newId); this.selectedEff.raw = parts.join(';');
+		this.render();
+		this.log(`Đã cập nhật ID eff thành ${newId}.`);
+	}
+
+	handleUpdateSelectedEffRaw() {
+		if (!this.selectedEff) { this.log('Chưa chọn eff để cập nhật Raw.'); return; }
+		const rawEl = document.getElementById('fp-eff-raw-input') || document.getElementById('eff-raw-input');
+		const newRaw = String(rawEl?.value || '');
+		this.pushUndoSnapshot();
+		this.selectedEff.raw = newRaw;
+		const parts = newRaw.split(';');
+		const newId = parseInt(parts[1] || '0', 10) || 0;
+		const tx = parseInt(parts[2] || '0', 10) || 0;
+		const ty = parseInt(parts[3] || '0', 10) || 0;
+		this.selectedEff.id = newId;
+		this.selectedEff.name = `Eff ID: ${newId}`;
+		this.selectedEff.text = `Eff: ${newId}`;
+		this.selectedEff.x = tx * TILE_SIZE;
+		this.selectedEff.y = ty * TILE_SIZE;
+		const sid = document.getElementById('eff-selected-id') || document.getElementById('fp-eff-selected-id'); if (sid) sid.value = String(newId);
+		this.render();
+		this.log('Đã cập nhật Raw của eff.');
+	}
+
+	handleDeleteSelectedIcon() {
+		if (!this.mapData) return;
+		if (!this.selectedEffectObject) { this.log('Chưa chọn icon nào. Hãy bật sửa icon và click vào icon trên map.'); return; }
+		this.pushUndoSnapshot();
+		const idx = this.mapData.effectObjects.indexOf(this.selectedEffectObject);
+		if (idx >= 0) { const id = this.selectedEffectObject.templateId; this.mapData.effectObjects.splice(idx, 1); this.selectedEffectObject = null; this.render(); this.log(`Đã xóa icon ${id}.`); }
+	}
+
+	populateIconPalette() {
+		try {
+			const panel = document.getElementById('fp-icon-palette-container') || document.getElementById('icon-palette-container');
+			if (!panel) return;
+			panel.innerHTML = '';
+			const entries = Array.from(this.effectIcons.entries()).filter(([id, img]) => id >= 0 && id <= 999).sort((a,b) => a[0] - b[0]);
+			for (const [id, img] of entries) {
+				const wrap = document.createElement('div');
+				wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.alignItems = 'center'; wrap.style.gap = '2px';
+				const canvas = document.createElement('canvas'); canvas.width = Math.max(24, Math.min(32, img.width)); canvas.height = Math.max(24, Math.min(32, img.height));
+				const cctx = canvas.getContext('2d'); cctx.imageSmoothingEnabled = false; cctx.drawImage(img, 0, 0, canvas.width, canvas.height); canvas.draggable = true; canvas.dataset.iconId = String(id); canvas.title = `Icon ${id}`;
+				canvas.addEventListener('dragstart', (ev) => { ev.dataTransfer?.setData('text/plain', String(id)); });
+				const label = document.createElement('div'); label.textContent = String(id); label.style.fontSize = '10px'; label.style.color = '#ccc';
+				wrap.appendChild(canvas); wrap.appendChild(label); panel.appendChild(wrap);
+			}
+		} catch {}
+	}
+
+	handleDrop(event) {
+		event.preventDefault();
+		if (!this.mapData || !event.dataTransfer) return;
+		const data = event.dataTransfer.getData('text/plain');
+		const iconId = parseInt(data, 10);
+		if (Number.isFinite(iconId)) {
+			const rect = this.canvas.getBoundingClientRect();
+			const sx = event.clientX - rect.left;
+			const sy = event.clientY - rect.top;
+			const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+			const obj = { templateId: iconId, x: Math.round(mx), y: Math.round(my), text: '', name: `Effect ID: ${iconId}` };
+			this.mapData.effectObjects.push(obj);
+			this.selectedEffectObject = obj;
+			this.render();
+			this.log(`Kéo thả icon ${iconId} vào map.`);
+			return;
+		}
+	}
+
+	handleDragOver(event) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'; }
+
+	handleRightClick(event) {
+		event.preventDefault();
+		if (!this.mapData) return;
+		const rect = this.canvas.getBoundingClientRect();
+		const sx = event.clientX - rect.left;
+		const sy = event.clientY - rect.top;
+		const { x: mx, y: my } = this.screenToMapCoords(sx, sy);
+		if (this.isEffEditingMode) {
+			const effHit = this.hitTestEff(mx, my);
+			if (effHit) { const idx = this.mapData.effData.indexOf(effHit); if (idx >= 0) { this.pushUndoSnapshot(); this.mapData.effData.splice(idx, 1); if (this.selectedEff === effHit) this.selectedEff = null; this.render(); this.log(`Đã xóa eff ${effHit.id ?? '?' } bằng chuột phải.`); return; } }
+		}
+		if (this.isNpcEditingMode) {
+			const npcHit = this.hitTestNpc(mx, my);
+			if (npcHit) { const idx = this.mapData.npcs.indexOf(npcHit); if (idx >= 0) { this.pushUndoSnapshot(); const name = npcHit.name; this.mapData.npcs.splice(idx, 1); if (this.selectedNpc === npcHit) this.selectedNpc = null; this.render(); this.log(`Đã xóa NPC '${name}' bằng chuột phải.`); return; } }
+		}
+		const hit = this.hitTestEffectObject(mx, my);
+		if (hit) { const idx = this.mapData.effectObjects.indexOf(hit); if (idx >= 0) { this.pushUndoSnapshot(); const id = hit.templateId; this.mapData.effectObjects.splice(idx, 1); if (this.selectedEffectObject === hit) this.selectedEffectObject = null; this.render(); this.log(`Đã xóa icon ${id} bằng chuột phải.`); } }
+	}
+
+	// Undo
+	pushUndoSnapshot() {
+		if (!this.mapData) return;
+		const snap = { tileMap: this.mapData.tileMap.map(row => row.slice()), effectObjects: this.mapData.effectObjects.map(o => ({...o})), vgos: this.mapData.vgos.map(v => ({...v})), effData: this.mapData.effData.map(e => ({...e})), npcs: this.mapData.npcs.map(n => ({...n})), width: this.mapData.width, height: this.mapData.height };
+		this.undoStack.push(snap);
+		if (this.undoButton) this.undoButton.disabled = false;
+		if (this.topUndoButton) this.topUndoButton.disabled = false;
+		if (this.undoStack.length > 100) this.undoStack.shift();
+	}
+
+	handleUndo() {
+		if (!this.mapData || this.undoStack.length === 0) return;
+		const snap = this.undoStack.pop();
+		this.mapData.tileMap = snap.tileMap.map(row => row.slice());
+		this.mapData.effectObjects = snap.effectObjects.map(o => ({...o}));
+		this.mapData.vgos = snap.vgos.map(v => ({...v}));
+		this.mapData.effData = snap.effData.map(e => ({...e}));
+		this.mapData.npcs = snap.npcs.map(n => ({...n}));
+		this.mapData.width = snap.width;
+		this.mapData.height = snap.height;
+		if (this.undoButton && this.undoStack.length === 0) this.undoButton.disabled = true;
+		if (this.topUndoButton && this.undoStack.length === 0) this.topUndoButton.disabled = true;
+		this.selectedEffectObject = null;
+		this.calculateCollisionMap();
+		this.resetView();
+		this.render();
+		this.log('Đã hoàn tác thay đổi gần nhất.');
+	}
+
+	inferVgoDirection(vgo) {
+		if (!this.mapData) return 'up';
+		const mapW = this.mapData.width * TILE_SIZE; const mapH = this.mapData.height * TILE_SIZE;
+		if (vgo.x < 100) return 'left'; if (vgo.x > mapW - 100) return 'right'; if (vgo.y < mapH / 2) return 'up'; return 'down';
+	}
+	directionAngle(dir) { switch (String(dir)) { case 'left': return Math.PI; case 'right': return 0; case 'down': return Math.PI / 2; case 'up': default: return -Math.PI / 2; } }
+	drawArrow(cx, cy, angleRad) { const len = 14 / this.scale; const head = 6 / this.scale; this.ctx.save(); this.ctx.translate(cx, cy); this.ctx.rotate(angleRad); this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2 / this.scale; this.ctx.beginPath(); this.ctx.moveTo(0, 0); this.ctx.lineTo(len, 0); this.ctx.stroke(); this.ctx.beginPath(); this.ctx.moveTo(len, 0); this.ctx.lineTo(len - head, head/2); this.ctx.lineTo(len - head, -head/2); this.ctx.closePath(); this.ctx.fillStyle = '#fff'; this.ctx.fill(); this.ctx.restore(); }
+
+	// NPC logic (read/add/edit/save)
+	async handleNpcFiles(event) {
+		const input = event.target;
+		if (!input.files || !this.mapData) return;
+		this.log(`Bắt đầu xử lý ${input.files.length} tệp NPC...`);
+		this.mapData.npcs = [];
+		this.log("Đã xóa danh sách NPC hiện tại để chuẩn bị tải mới.");
+		for (const file of Array.from(input.files)) {
+			try {
+				const buffer = await file.arrayBuffer();
+				const reader = new BinaryReader(buffer);
+				if (reader.eof) { this.log(`Tệp NPC '${file.name}' trống, bỏ qua.`); continue; }
+				const count = reader.readByte();
+				this.log(`Tệp '${file.name}': Đang đọc ${count} NPC...`);
+				let localAddCount = 0;
+				for (let i = 0; i < count; i++) {
+					if (reader.eof) { this.log(`LỖI: Tệp '${file.name}' kết thúc sớm. Đã đọc ${i}/${count} NPC.`); break; }
+					const npc = { name: reader.readUTF(), menuTitle: reader.readUTF(), npcId: reader.readByte(), iconMiniMap: reader.readByte(), x: reader.readShort() + 12, y: reader.readShort(), type1: reader.readByte(), type2: reader.readByte(), direction: reader.readByte(), iconInteract: reader.readByte(), dialog: reader.readUTF(), flag1: reader.readByte(), flag2: reader.readByte() };
+					this.mapData.npcs.push(npc); localAddCount++;
+				}
+				this.log(`Đã tải thành công ${localAddCount} NPC từ tệp '${file.name}'.`);
+			} catch (e) { this.log(`LỖI: Không thể phân tích tệp NPC ${file.name}.`); console.error(`Failed to parse NPC file ${file.name}:`, e); }
+		}
+		this.log(`Hoàn tất. Tổng số NPC hiện tại: ${this.mapData.npcs.length}. Đang kết xuất lại.`);
+		this.render();
+	}
+
+	handleAddNpc() {
+		if (!this.mapData) { this.log("LỖI: Không thể thêm NPC khi chưa có bản đồ nào được tải."); return; }
+		const viewCenterX = (this.canvas.width / 2 - this.panX) / this.scale;
+		const viewCenterY = (this.canvas.height / 2 - this.panY) / this.scale;
+		const newNpc = { name: "New NPC", menuTitle: "Interact", dialog: "Hello!", npcId: this.mapData.npcs.length > 0 ? Math.max(...this.mapData.npcs.map(n => n.npcId)) + 1 : 1, x: Math.round(viewCenterX), y: Math.round(viewCenterY), iconMiniMap: 0, iconInteract: 0, type1: 0, type2: 0, direction: 2, flag1: 1, flag2: 0 };
+		this.mapData.npcs.push(newNpc);
+		this.selectedNpc = newNpc;
+		this.log(`Đã thêm NPC mới '${newNpc.name}' tại (${newNpc.x}, ${newNpc.y}).`);
+		this.showNpcEditor(newNpc, true);
+		this.render();
+	}
+
+	showNpcEditor(npc, isNew = false) {
+		this.currentEditingNpc = npc; this.isNewNpc = isNew; this.npcEditorTitle.textContent = isNew ? "Add New NPC" : `Edit NPC: ${npc.name}`;
+		for (const key in npc) { const inputEl = this.npcEditorForm.elements.namedItem(key); if (inputEl) inputEl.value = npc[key]; }
+		this.updateNpcEditorIconPreview('npc-iconMiniMap', 'minimap-icon-preview', 3000);
+		this.updateNpcEditorIconPreview('npc-iconInteract', 'interact-icon-preview', 3500);
+		this.npcEditorModal.style.display = 'block';
+	}
+
+	hideNpcEditor(wasCancelled = false) {
+		if (wasCancelled && this.isNewNpc && this.currentEditingNpc && this.mapData) {
+			const index = this.mapData.npcs.indexOf(this.currentEditingNpc);
+			if (index > -1) { this.mapData.npcs.splice(index, 1); }
+			this.log("Thao tác thêm NPC mới đã bị hủy.");
+			if (this.selectedNpc === this.currentEditingNpc) { this.selectedNpc = null; }
+			this.render();
+		}
+		this.npcEditorModal.style.display = 'none';
+		this.currentEditingNpc = null; this.isNewNpc = false;
+	}
+
+	handleNpcEditorSave() {
+		if (!this.currentEditingNpc) return;
+		const formData = new FormData(this.npcEditorForm);
+		for (const key of Object.keys(this.currentEditingNpc)) {
+			const value = formData.get(key);
+			if (value !== null) { const isNumeric = !['name', 'menuTitle', 'dialog'].includes(key); this.currentEditingNpc[key] = isNumeric ? Number(value) : value; }
+		}
+		this.log(`Đã cập nhật thông tin cho NPC '${this.currentEditingNpc.name}'.`);
+		this.hideNpcEditor(false);
+		this.render();
+	}
+
+	updateNpcEditorIconPreview(inputId, previewId, idBase) {
+		const inputElement = document.getElementById(inputId);
+		const previewElement = document.getElementById(previewId);
+		if (!inputElement || !previewElement) return;
+		previewElement.innerHTML = '';
+		const value = parseInt(inputElement.value, 10);
+		if (isNaN(value)) { previewElement.textContent = '?'; return; }
+		const finalIconId = idBase + value;
+		const iconImage = this.effectIcons.get(finalIconId);
+		if (iconImage && iconImage.complete) {
+			const r = this.getIconFrameRect(iconImage);
+			const c = document.createElement('canvas');
+			c.width = r.sw; c.height = r.sh;
+			const cctx = c.getContext('2d'); cctx.imageSmoothingEnabled = false;
+			cctx.drawImage(iconImage, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
+			previewElement.appendChild(c);
+		}
+		else { previewElement.textContent = '?'; }
+	}
+
+	showNpcDialog(npc) {
+		this.hideNpcDialog();
+		const interactionIconId = 3500 + Number(npc.iconInteract);
+		const interactionIconImg = this.effectIcons.get(interactionIconId);
+		const container = document.createElement('div');
+		container.id = 'npc-interaction-dialog';
+		container.className = 'npc-dialog-container';
+		const dialogBox = document.createElement('div');
+		dialogBox.className = 'npc-dialog-box';
+		const header = document.createElement('div'); header.className = 'npc-dialog-header'; const title = document.createElement('h3'); title.textContent = npc.name; header.appendChild(title);
+		const content = document.createElement('div'); content.className = 'npc-dialog-content'; const text = document.createElement('p'); text.textContent = npc.dialog; content.appendChild(text);
+		const actions = document.createElement('div'); actions.className = 'npc-dialog-actions';
+		if (npc.menuTitle && String(npc.menuTitle).trim() !== '') { const mainButton = document.createElement('button'); mainButton.textContent = npc.menuTitle; actions.appendChild(mainButton); }
+		const closeButton = document.createElement('button'); closeButton.textContent = 'Đóng'; closeButton.onclick = () => this.hideNpcDialog(); actions.appendChild(closeButton);
+		dialogBox.appendChild(header); dialogBox.appendChild(content); dialogBox.appendChild(actions);
+		const portraitPanel = document.createElement('div'); portraitPanel.className = 'npc-dialog-portrait';
+		if (interactionIconImg && interactionIconImg.complete) {
+			const r = this.getIconFrameRect(interactionIconImg);
+			const scaleFactor = 2.5;
+			const canvas = document.createElement('canvas');
+			canvas.width = r.sw * scaleFactor; canvas.height = r.sh * scaleFactor;
+			const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+			ctx.drawImage(interactionIconImg, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
+			portraitPanel.appendChild(canvas);
+		} else { const placeholder = document.createElement('div'); placeholder.textContent = `? ${interactionIconId}`; placeholder.className = 'icon-placeholder'; portraitPanel.appendChild(placeholder); }
+		container.appendChild(dialogBox); container.appendChild(portraitPanel); this.canvasContainer.appendChild(container);
+		const screenX = npc.x * this.scale + this.panX; const screenY = npc.y * this.scale + this.panY; const containerRect = this.canvasContainer.getBoundingClientRect(); const dialogRect = container.getBoundingClientRect();
+		let finalX = screenX - (dialogRect.width / 2); let finalY = screenY - dialogRect.height - 20;
+		if (finalX < 10) finalX = 10; if (finalX + dialogRect.width > containerRect.width - 10) finalX = containerRect.width - dialogRect.width - 10; if (finalY < 10) finalY = 10; if (finalY + dialogRect.height > containerRect.height - 10) finalY = containerRect.height - dialogRect.height - 10;
+		container.style.left = `${finalX}px`; container.style.top = `${finalY}px`;
+	}
+
+	hideNpcDialog() {
+		const dialog = document.getElementById('npc-interaction-dialog');
+		if (dialog) dialog.remove();
+	}
+
+	drawNpc(npc) {
+		const finalIconId = 3000 + (npc.iconMiniMap | 0);
+		const icon = this.effectIcons.get(finalIconId);
+		if (icon && icon.complete) {
+			const r = this.getIconFrameRect(icon);
+			this.ctx.drawImage(icon, r.sx, r.sy, r.sw, r.sh, npc.x, npc.y, r.sw, r.sh);
+			if (npc.name) {
+				this.ctx.fillStyle = '#ffffff';
+				this.ctx.font = `bold ${12 / this.scale}px sans-serif`;
+				this.ctx.textAlign = 'center';
+				this.ctx.strokeStyle = 'black';
+				this.ctx.lineWidth = 2 / this.scale;
+				const textX = npc.x + r.sw / 2;
+				const textY = npc.y - 5 / this.scale;
+				this.ctx.strokeText(npc.name, textX, textY);
+				this.ctx.fillText(npc.name, textX, textY);
+			}
+			if (this.isNpcEditingMode && npc === this.selectedNpc) { this.ctx.strokeStyle = '#ffff00'; this.ctx.lineWidth = 2 / this.scale; this.ctx.strokeRect(npc.x, npc.y, r.sw, r.sh); }
+		} else {
+			this.ctx.fillStyle = 'rgba(148, 0, 211, 0.5)'; this.ctx.strokeStyle = '#9400D3'; this.ctx.lineWidth = 1 / this.scale; this.ctx.fillRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE); this.ctx.strokeRect(npc.x, npc.y, TILE_SIZE, TILE_SIZE);
+		}
+	}
+
+	handleSaveNpcs() {
+		if (!this.mapData || this.mapData.npcs.length === 0) { this.log("CẢNH BÁO: Không có NPC nào để lưu."); return; }
+		this.log(`Bắt đầu lưu ${this.mapData.npcs.length} NPC...`);
+		try {
+			const writer = new BinaryWriter(); writer.writeByte(this.mapData.npcs.length);
+			for (const npc of this.mapData.npcs) {
+				writer.writeUTF(npc.name);
+				writer.writeUTF(npc.menuTitle);
+				writer.writeByte(npc.npcId);
+				writer.writeByte(npc.iconMiniMap);
+				writer.writeShort((npc.x | 0) - 12);
+				writer.writeShort(npc.y | 0);
+				writer.writeByte(npc.type1);
+				writer.writeByte(npc.type2);
+				writer.writeByte(npc.direction);
+				writer.writeByte(npc.iconInteract);
+				writer.writeUTF(npc.dialog);
+				writer.writeByte(npc.flag1);
+				writer.writeByte(npc.flag2);
+			}
+			const finalBuffer = writer.getBuffer();
+			const blob = new Blob([finalBuffer], { type: 'application/octet-stream' });
+			const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `npc_data_${this.mapData.tilesetId}.dat`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+			this.log(`Hoàn tất! Tệp NPC '${a.download}' đã được tạo.`);
+		} catch (error) { this.log(`LỖI nghiêm trọng trong quá trình lưu NPC: ${error}`); console.error("Failed to save NPC file:", error); }
+	}
+
+			computeNpcVerticalSlices(img) {
+			try {
+				const w = img?.width || TILE_SIZE;
+				const h = img?.height || TILE_SIZE;
+				const ratio = h / Math.max(1, w);
+				// Detect midline seam (2-frame) for ambiguous tall sprites (e.g., 22x88, 25x88)
+				let frames = 1;
+				const r = ratio;
+				let forceTwo = false;
+				if (r >= 3.0 && r <= 4.2) {
+					try {
+						const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0);
+						const data = ctx.getImageData(0, 0, w, h).data;
+						const stripeAvg = (cy) => { const band = Math.max(1, Math.round(h * 0.04)); let sum = 0, cnt = 0; const y0 = Math.max(0, cy - band), y1 = Math.min(h - 1, cy + band); for (let y = y0; y <= y1; y++) { let o = y * w * 4 + 3; let s = 0; for (let x = 0; x < w; x++) { s += data[o]; o += 4; } sum += s / (255 * w); cnt++; } return cnt > 0 ? sum / cnt : 1; };
+						const mid = Math.floor(h / 2), q1 = Math.floor(h / 4), q3 = Math.floor((3 * h) / 4);
+						const m = stripeAvg(mid), a = stripeAvg(q1), b = stripeAvg(q3);
+						if (m <= Math.min(a, b) - 0.06) forceTwo = true;
+					} catch {}
+				}
+				if (forceTwo) {
+					frames = 2;
+				} else {
+					// Prefer divisibility; special-case small-width sprites
+					const isSmall = w <= 24;
+					const near = (x, y, tol) => Math.abs(x - y) <= tol;
+					if ((h % 4 === 0 || near(r, 4, 0.05)) && ((isSmall && r >= 3.8) || (!isSmall && r >= 3.1))) frames = 4;
+					else if ((h % 2 === 0 || near(r, 2, 0.05)) && r >= 1.45) frames = 2;
+					else if ((isSmall && r >= 3.8) || (!isSmall && r >= 3.35)) frames = 4;
+					else if (r >= 1.45) frames = 2;
+					else frames = 1;
+				}
+				const slices = [];
+				if (frames === 1) { slices.push({ sy: 0, sh: h }); return slices; }
+				const per = Math.floor(h / frames);
+				const rem = h - per * frames;
+				let y0 = 0;
+				for (let i = 0; i < frames; i++) {
+					const extra = i < rem ? 1 : 0;
+					const sh = per + extra;
+					slices.push({ sy: y0, sh: Math.max(1, sh) });
+					y0 += sh;
+				}
+				return slices;
+			} catch { return [{ sy: 0, sh: img?.height || TILE_SIZE }]; }
+		}
+
+		getIconFrameRect(img) {
+			const w = img?.width || TILE_SIZE; const h = img?.height || TILE_SIZE;
+			let cache = this.npcFrameCache.get(img);
+			if (!cache || cache.w !== w || cache.h !== h || !Array.isArray(cache.slices)) {
+				const slices = this.computeNpcVerticalSlices(img);
+				cache = { w, h, frames: slices.length, slices, start: (Date.now() % (this.animationTickMs * 1000)) };
+				this.npcFrameCache.set(img, cache);
+			}
+			const frames = cache.frames; const slices = cache.slices;
+			const elapsed = Date.now() - (cache.start || 0);
+			const idx = frames > 1 ? Math.floor(elapsed / this.animationTickMs) % frames : 0;
+			const sl = slices[idx] || { sy: 0, sh: h };
+			return { sx: 0, sy: sl.sy, sw: w, sh: sl.sh };
+		}
+
+	startAnimationLoop() {
+		if (this.animationTimer) clearInterval(this.animationTimer);
+		this.animationTimer = setInterval(() => { if (this.mapData) this.render(); }, this.animationTickMs);
+	}
+
+	async handleTilesetWaterFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		const img = new Image();
+		img.onload = () => { this.tilesetWaterImage = img; this.log(`Đã nạp tilewater: ${file.name}`); };
+		img.onerror = () => { this.log(`LỖI: Không thể nạp tilewater '${file.name}'.`); this.tilesetWaterImage = null; };
+		img.src = URL.createObjectURL(file);
+	}
+
+	async handleTilesetSmallFile(event) {
+		const input = event.target;
+		if (!input.files || input.files.length === 0) return;
+		const file = input.files[0];
+		const img = new Image();
+		img.onload = () => { this.tilesetSmallImage = img; this.log(`Đã nạp tile_small: ${file.name}`); };
+		img.onerror = () => { this.log(`LỖI: Không thể nạp tile_small '${file.name}'.`); this.tilesetSmallImage = null; };
+		img.src = URL.createObjectURL(file);
+	}
+
+	exportTilesetExtras() {
+		if (!this.mapData) { this.log('Chưa có map để xuất water/small.'); return; }
+		const id = this.mapData.tilesetId | 0;
+		const downloadImg = (img, fname) => {
+			try { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0); c.toBlob((blob) => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }); } catch {}
+		};
+		let any = false;
+		if (this.tilesetWaterImage) { any = true; downloadImg(this.tilesetWaterImage, `tilewater${id}.png`); downloadImg(this.tilesetWaterImage, `102_${id}.png`); }
+		if (this.tilesetSmallImage) { any = true; downloadImg(this.tilesetSmallImage, `tile_small${id}.png`); downloadImg(this.tilesetSmallImage, `101_${id}.png`); }
+		if (!any) this.log('Chưa nạp ảnh water/small để xuất.'); else this.log('Đã xuất water/small theo ID hiện tại.');
+	}
+}
+
+new MapViewerApp();
+	</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>HSO Map Viewer</title>
+	<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+	<style>
+		:root {
+			--bg-color: #1a1a1a;
+			--surface-color: #2a2a2a;
+			--primary-color: #4CAF50;
+			--primary-hover: #5cb85c;
+			--text-color: #f0f0f0;
+			--text-muted: #888;
+			--border-color: #444;
+			--font-family: 'Inter', sans-serif;
+		}
+		html { font-family: var(--font-family); }
+		body {
+			background-color: var(--bg-color);
+			color: var(--text-color);
+			margin: 0;
+			font-family: var(--font-family);
+			display: flex;
+			height: 100vh;
+			overflow: hidden;
+		}
+		.app-container {
+			display: flex;
+			width: 100%;
+			height: 100%;
+		}
+		.sidebar {
+			width: 350px;
+			min-width: 300px;
+			background-color: var(--surface-color);
+			padding: 1.5rem;
+			border-right: 1px solid var(--border-color);
+			display: flex;
+			flex-direction: column;
+			gap: 1.5rem;
+			overflow-y: auto;
+			box-sizing: border-box;
+		}
+		header h1 {
+			margin: 0 0 0.5rem 0;
+			font-size: 1.75rem;
+			color: var(--primary-color);
+		}
+		p.description {
+			color: var(--text-muted);
+			margin: 0 0 1rem 0;
+			font-size: 0.9rem;
+		}
+		h2 {
+			font-size: 1.1rem;
+			font-weight: 600;
+			border-bottom: 2px solid var(--primary-color);
+			padding-bottom: 0.5rem;
+			margin: 0 0 1rem 0;
+		}
+		.control-group {
+			background-color: #222;
+			padding: 1rem;
+			border-radius: 6px;
+			border: 1px solid var(--border-color);
+		}
+		.file-input-group { margin-bottom: 1rem; }
+		.file-input-group label {
+			display: block;
+			margin-bottom: 0.5rem;
+			font-weight: 500;
+		}
+		input[type="file"], input[type="number"], select, input[type="text"], textarea {
+			width: 100%;
+			background-color: #3e3e3e;
+			color: var(--text-color);
+			border: 1px solid var(--border-color);
+			padding: 0.5rem;
+			border-radius: 4px;
+			box-sizing: border-box;
+			font-size: 0.9rem;
+		}
+		input[type="file"]::file-selector-button {
+			background-color: #555;
+			color: var(--text-color);
+			border: none;
+			padding: 0.5rem 1rem;
+			border-radius: 4px;
+			cursor: pointer;
+			transition: background-color 0.2s;
+			margin-right: 1rem;
+		}
+		input[type="file"]::file-selector-button:hover { background-color: #666; }
+
+		.action-button {
+			width: 100%;
+			background-color: var(--primary-color);
+			color: white;
+			border: none;
+			padding: 0.75rem 1.2rem;
+			border-radius: 4px;
+			font-family: var(--font-family);
+			font-weight: 600;
+			cursor: pointer;
+			transition: background-color 0.2s, opacity 0.2s;
+			font-size: 1rem;
+		}
+		.action-button:hover:not(:disabled) { background-color: var(--primary-hover); }
+		.action-button:disabled { background-color: #555; opacity: 0.6; cursor: not-allowed; }
+		.log-entries {
+			flex-grow: 1;
+			overflow-y: auto;
+			background-color: var(--bg-color);
+			padding: 0.75rem;
+			border-radius: 4px;
+			border: 1px solid var(--border-color);
+			font-family: 'Courier New', Courier, monospace;
+			font-size: 0.85rem;
+			display: flex;
+			flex-direction: column-reverse;
+			min-height: 150px;
+		}
+		.log-entry { margin-bottom: 0.25rem; line-height: 1.4; color: #ccc; word-break: break-word; }
+		.log-timestamp { color: var(--text-muted); margin-right: 0.5rem; }
+
+		#canvas-container {
+			flex-grow: 1;
+			position: relative;
+			background-color: #111;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		#map-canvas { display: block; background-color: var(--bg-color); cursor: grab; }
+		#map-canvas.grabbing { cursor: grabbing; }
+		#welcome-message { color: var(--text-muted); text-align: center; font-size: 1.2rem; }
+		.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+		.inline { display: flex; gap: 0.5rem; align-items: center; }
+		.small-muted { color: var(--text-muted); font-size: 0.8rem; }
+
+		/* NPC Modal */
+		#npc-editor-modal {
+			display: none;
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translate(-50%, -50%);
+			background: #222;
+			border: 1px solid var(--border-color);
+			border-radius: 6px;
+			padding: 16px;
+			z-index: 1000;
+			min-width: 420px;
+			max-width: 540px;
+			color: var(--text-color);
+			box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+		}
+		#npc-editor-modal h3 { margin: 0 0 12px 0; }
+		#npc-editor-form label { font-size: 12px; color: #aaa; display: block; margin-bottom: 4px; }
+		#npc-editor-form .field { margin-bottom: 8px; }
+		#npc-editor-actions { display: flex; gap: 8px; margin-top: 8px; }
+		.icon-preview { width: 48px; height: 48px; border: 1px solid var(--border-color); display:flex; align-items:center; justify-content:center; }
+		/* Top toolbar and floating panel */
+		#top-toolbar { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: var(--surface-color); border-bottom: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center; padding: 8px 12px; }
+		#top-toolbar .mode-button { background: #3a3a3a; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; cursor: pointer; font-weight: 600; }
+		#top-toolbar .mode-button.active { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+		#top-toolbar .toolbar-group { display: flex; gap: 8px; }
+		.app-container { margin-top: 48px; }
+		.floating-panel { position: absolute; top: 80px; left: 420px; width: 420px; height: 360px; background: #1f1f1f; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 1200; display: flex; flex-direction: column; resize: both; overflow: hidden; }
+		.floating-header { display: flex; align-items: center; justify-content: space-between; background: #2b2b2b; padding: 6px 10px; cursor: move; border-bottom: 1px solid var(--border-color); }
+		.floating-title { font-weight: 700; color: var(--text-color); }
+		.floating-controls { display: flex; gap: 6px; }
+		.floating-controls button { background: #444; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+		.floating-controls button:hover { background: #555; }
+		.floating-content { flex: 1; overflow: auto; padding: 10px; }
+		.floating-panel.minimized { height: auto; }
+		.floating-panel.minimized .floating-content { display: none; }
+		.floating-content::-webkit-scrollbar { width: 8px; height: 8px; }
+		.floating-content::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+		/* Hide sidebar to simplify UI */
+		.sidebar { display: none; }
+	</style>
+</head>
+<body>
+	<div id="top-toolbar">
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="file">Tệp</button>
+			<button class="mode-button" data-mode="resize">Kích thước</button>
+			<button class="mode-button" data-mode="collision">Va chạm</button>
+			<button class="mode-button" data-mode="log">Log</button>
+		</div>
+		<div class="toolbar-group">
+			<button class="mode-button" data-mode="tile">Sửa Tile</button>
+			<button class="mode-button" data-mode="icon">Icon</button>
+			<button class="mode-button" data-mode="eff">Eff</button>
+			<button class="mode-button" data-mode="vgo">VGO</button>
+			<button class="mode-button" data-mode="npc">NPC</button>
+		</div>
+		<div class="toolbar-group" style="margin-left:auto; align-items:center;">
+			<label class="inline" style="gap:6px; align-items:center;">
+				<input type="checkbox" id="toggle-overlays" checked>
+				<span>Hiện icon/Eff/NPC</span>
+			</label>
+		</div>
+		<div style="display:flex; gap:8px;">
+			<button id="top-undo-btn" class="mode-button" disabled>↶ Hoàn tác</button>
+		</div>
+	</div>
+	<div class="app-container">
+		<div class="sidebar">
 			<header>
 				<h1>HSO Map Viewer</h1>
 				<p class="description">Tải file map và tileset tương ứng để xem bản đồ một cách trực quan.</p>
